@@ -60,12 +60,13 @@ func (c *Cache) Set(key, value []byte, ttl time.Duration) error {
 	defer c.lock.Unlock()
 
 	c.data[string(key)] = value
-	log.Printf("key [%s] set in cache\n", key)
 
-	go func() {
-		<-time.After(ttl)
-		delete(c.data, string(key))
-	}()
+	if ttl > 0 {
+		go func() {
+			<-time.After(ttl)
+			delete(c.data, string(key))
+		}()
+	}
 
 	return nil
 }

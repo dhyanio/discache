@@ -1,18 +1,20 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"github.com/dhyanio/discache/cache"
+	"github.com/dhyanio/discache/proto"
 )
 
 // ServerOpts represents the options for a cache server
 type ServerOpts struct {
 	ListenAddr string
 	IsLeader   bool
+	LeaderAddr string
 }
 
 // Server represents a cache server
@@ -49,60 +51,32 @@ func (s *Server) Start() error {
 
 // handleConn handles the incoming connection
 func (s *Server) handleConn(conn net.Conn) {
-	buf := make([]byte, 2048)
+	defer conn.Close()
+
+	fmt.Println("connection made:", conn.RemoteAddr())
+
 	for {
-		n, err := conn.Read(buf)
+		cmd, err := proto.ParseCommand(conn)
 		if err != nil {
-			log.Printf("conn read error: %s\n", err)
 			break
 		}
-
-		go s.handleCommand(conn, buf[:n])
+		go s.handleCommand(conn, cmd)
 	}
+
+	fmt.Println("connection closed:", conn.RemoteAddr())
 }
 
 // handleCommand handles the incoming command
-func (s *Server) handleCommand(conn net.Conn, rawCmd []byte) {
-	msg, err := parseMessage(rawCmd)
-	if err != nil {
-		fmt.Println("failed to parse command", err)
-		conn.Write([]byte(fmt.Sprintf("ERR %s\n", err)))
-		return
-	}
-	switch msg.Cmd {
-	case CMDSet:
-		err = s.handleSetCmd(conn, msg)
-	case CMDGet:
-		err = s.handleGetCmd(conn, msg)
-	}
-
-	if err != nil {
-		fmt.Println("failed to handle command", err)
-		conn.Write([]byte(fmt.Sprintf("ERR %s\n", err)))
+func (s *Server) handleCommand(conn net.Conn, cmd any) {
+	fmt.Println(cmd)
+	switch v := cmd.(type) {
+	case *proto.CommandSet:
+		s.handleSetCommand(conn, v)
+	case *proto.CommandGet:
 	}
 }
 
-// handleGetCmd handles the GET command
-func (s *Server) handleGetCmd(conn net.Conn, msg *Message) error {
-	val, err := s.cache.Get(msg.Key)
-	if err != nil {
-		return fmt.Errorf("cache get error: %s", err)
-	}
-	conn.Write([]byte(fmt.Sprintf("VALUE %s\n", val)))
-
-	return nil
-}
-
-// handleSetCmd handles the SET command
-func (s *Server) handleSetCmd(conn net.Conn, msg *Message) error {
-	if err := s.cache.Set(msg.Key, msg.Value, msg.TTL); err != nil {
-		return fmt.Errorf("cache set error: %s", err)
-	}
-	conn.Write([]byte("OK\n"))
-	go s.sendToFollwers(context.TODO(), msg)
-	return nil
-}
-
-func (s *Server) sendToFollwers(ctx context.Context, msg *Message) error {
-	return nil
+func (s *Server) handleSetCommand(conn net.Conn, cmd *proto.CommandSet) error {
+	log.Printf("SET %s to %s", cmd.Key, cmd.Value)
+	return s.cache.Set(cmd.Key, cmd.Value, time.Duration(cmd.TTL))
 }
