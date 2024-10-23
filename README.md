@@ -1,10 +1,10 @@
-# Distributed Cache in Golang
+# Discache : Distributed Cache in Golang
 
-Distributed cache server is a powerfull cache server written in golang.
+Discache is a powerfull cache server written in golang.
 
 # TODO
-
-- Use Advance Cobra dir structure. Learn first
-- Centalized logging, make it more advance and easy to use. Use func as type for Opts IDK
+- Makr LRU Cache server
+- Use Advance Cobra dir structure.
+- Centalized logging, make it more advance and easy to use. Use func as type for Opts
 - Documentations and Improve code
 - Use more context
