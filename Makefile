@@ -18,8 +18,8 @@ build: $(GO_FILES)
 run: build
 	$(BINARY_PATH)
 
-runfollower: build
-	$(BINARY_PATH) --listenaddr $(LISTEN_ADDR) --leaderaddr $(LEADER_ADDR)
+leader: build
+	$(BINARY_PATH) start node $(LISTEN_ADDR) leader $(LEADER_ADDR)
 
 test:
 	@go test -v ./...
