@@ -1,6 +1,6 @@
 # Discache : Distributed Cache in Golang
 
-Discache is a powerfull cache server written in golang.
+Discache is a powerful cache server written in golang.
 
 # TODO
 - Documentations and Improve code
