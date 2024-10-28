@@ -1,19 +1,22 @@
 package cache
 
 import (
-	"container/list"
+	"fmt"
 	"sync"
 	"time"
 )
 
+// Cache represents LRU cache
+
 type Cache struct {
 	capacity                int
 	ttl                     time.Duration
-	items                   map[int]*list.Element
-	order                   *list.List
+	items                   map[string][]byte
+	order                   []string // Slice to maintain the LRU order
 	mu                      sync.RWMutex
 	hits, misses, evictions int
-	onEvict                 func(key int, value string)
+	onEvict                 func(key string, value []byte)
+	timestamps              map[string]time.Time
 }
 
 type Entry struct {
@@ -22,75 +25,77 @@ type Entry struct {
 	timestamp time.Time
 }
 
-func NewCache(capacity int, ttl time.Duration, onEvict func(key int, value string)) *Cache {
+// NewCache creates a new Cache
+func NewCache(capacity int, ttl time.Duration, onEvict func(key string, value []byte)) *Cache {
 	return &Cache{
-		capacity: capacity,
-		ttl:      ttl,
-		items:    make(map[int]*list.Element),
-		order:    list.New(),
-		onEvict:  onEvict,
+		capacity:   capacity,
+		ttl:        ttl,
+		items:      make(map[string][]byte),
+		order:      []string{},
+		onEvict:    onEvict,
+		timestamps: make(map[string]time.Time),
 	}
 }
 
-// Get retrieves an item and refreshes its position
-func (c *Cache) Get(key int) (string, bool) {
+// Get retrieves an item from the cache and updates its position in the LRU order.
+func (c *Cache) Get(key []byte) ([]byte, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if element, found := c.items[key]; found {
-		entry := element.Value.(*Entry)
-		if c.ttl > 0 && time.Since(entry.timestamp) > c.ttl {
-			c.removeElement(element) // Expire item
+	strKey := string(key)
+
+	if value, found := c.items[strKey]; found {
+		if c.ttl > 0 && time.Since(c.timestamps[string(key)]) > c.ttl {
+			c.remove(strKey) // Expire the item if TTL has elapsed
 			c.misses++
-			return "", false
+			return nil, fmt.Errorf("Expired key so removed from casech server")
 		}
-		c.mu.RUnlock()
-		c.mu.Lock()
-		c.order.MoveToFront(element)
-		c.mu.Unlock()
-		c.mu.RLock()
 		c.hits++
-		return entry.value, true
+		c.updateOrder(strKey) // Move the accessed key to the end of the order slice
+		return value, nil
 	}
 	c.misses++
-	return "", false
+	return nil, fmt.Errorf("erro not get anything")
 }
 
-// Put adds or updates an item
-func (c *Cache) Put(key int, value string) {
+// Put adds or updates an item in the cache
+func (c *Cache) Put(key, value []byte, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if element, found := c.items[key]; found {
-		element.Value.(*Entry).value = value
-		element.Value.(*Entry).timestamp = time.Now()
-		c.order.MoveToFront(element)
-		return
+	strKey := string(key)
+
+	if _, found := c.items[strKey]; found {
+		c.items[strKey] = value
+		c.timestamps[strKey] = time.Now()
+		c.updateOrder(strKey)
+		return nil
 	}
 
-	if c.order.Len() >= c.capacity {
+	// Evict the least recently used item if capacity is reached
+	if len(c.items) >= c.capacity {
 		c.evict()
 	}
 
-	entry := &Entry{key: key, value: value, timestamp: time.Now()}
-	element := c.order.PushFront(entry)
-	c.items[key] = element
+	c.items[strKey] = value
+	c.timestamps[strKey] = time.Now()
+	c.order = append(c.order, strKey) // Add key to the end of order slice
+	return nil
 }
 
-// Has checks if an item exists without marking it as used
-func (c *Cache) Has(key int) bool {
+// Has checks if an item exists without updating its usage
+func (c *Cache) Has(key []byte) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	element, found := c.items[key]
-	if !found {
-		return false
+	strKey := string(key)
+	if _, found := c.items[strKey]; found {
+		if c.ttl > 0 && time.Since(c.timestamps[strKey]) > c.ttl {
+			return false
+		}
+		return true
 	}
-
-	if c.ttl > 0 && time.Since(element.Value.(*Entry).timestamp) > c.ttl {
-		return false
-	}
-	return true
+	return false
 }
 
 // Stats returns cache statistics
@@ -102,20 +107,41 @@ func (c *Cache) Stats() (hits, misses, evictions int) {
 
 // evict removes the least recently used item
 func (c *Cache) evict() {
-	oldest := c.order.Back()
-	if oldest != nil {
-		entry := oldest.Value.(*Entry)
-		c.removeElement(oldest)
+	if len(c.order) == 0 {
+		return
+	}
+	oldestKey := c.order[0]
+	c.remove(oldestKey)
+	c.evictions++
+}
+
+// remove deletes a key from the cache and updates the LRU order
+func (c *Cache) remove(key string) {
+	if _, found := c.items[key]; found {
+		delete(c.items, key)
+		delete(c.timestamps, key)
 		if c.onEvict != nil {
-			c.onEvict(entry.key, entry.value)
+			c.onEvict(key, c.items[key])
 		}
-		c.evictions++
+		// Remove the key from the order slice
+		for i, k := range c.order {
+			if k == key {
+				c.order = append(c.order[:i], c.order[i+1:]...)
+				break
+			}
+		}
 	}
 }
 
-// removeElement removes an element from the list and map
-func (c *Cache) removeElement(element *list.Element) {
-	c.order.Remove(element)
-	entry := element.Value.(*Entry)
-	delete(c.items, entry.key)
+// updateOrder moves a key to the end of the LRU order slice
+func (c *Cache) updateOrder(key string) {
+	for i, k := range c.order {
+		if k == key {
+			// Remove the key from its current position
+			c.order = append(c.order[:i], c.order[i+1:]...)
+			break
+		}
+	}
+	// Add the key to the end to mark it as recently used
+	c.order = append(c.order, key)
 }

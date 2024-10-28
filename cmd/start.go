@@ -70,11 +70,13 @@ func startServer(role, port, leaderPort string) {
 	}()
 
 	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
-	cc := cache.NewCache(3, 5*time.Second, func(key int, value string) {
-		fmt.Printf("Evicted: %d -> %s\n", key, value)
+
+	cc := cache.NewCache(3, 5*time.Second, func(key string, value []byte) {
+		fmt.Printf("Evicted: %s -> %s\n", key, value)
 	})
-	
+
 	server := server.NewServer(opts, cc)
+	
 	fmt.Println("IsLeader", opts.IsLeader)
 
 	if err := server.Start(); err != nil {
