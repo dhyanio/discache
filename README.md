@@ -1,5 +1,7 @@
 # Discache : Distributed LRU Cache
 
+<img src="./doc/discache.png" alt="Discache" width="700"/>
+
 Discache, is a powerfull, but simple LRU cache in golang. Using TCP and binary a as transporter which makes it very profomant.
 
 ## Client
