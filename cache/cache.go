@@ -19,12 +19,6 @@ type Cache struct {
 	timestamps              map[string]time.Time
 }
 
-type Entry struct {
-	key       int
-	value     string
-	timestamp time.Time
-}
-
 // NewCache creates a new Cache
 func NewCache(capacity int, ttl time.Duration, onEvict func(key string, value []byte)) *Cache {
 	return &Cache{
