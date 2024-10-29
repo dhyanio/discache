@@ -64,6 +64,7 @@ func (s *Server) Start() error {
 	}
 }
 
+// dialLeader dials leader
 func (s *Server) dialLeader() error {
 	conn, err := net.Dial("tcp", s.LeaderAddr)
 	if err != nil {
@@ -109,6 +110,7 @@ func (s *Server) handleCommand(conn net.Conn, cmd any) {
 	}
 }
 
+// handleJoinCommand
 func (s *Server) handleJoinCommand(conn net.Conn) error {
 	s.Log.Info(fmt.Sprintf("member joined %s", conn.RemoteAddr()))
 	s.members[client.NewFromConn(conn)] = struct{}{}
@@ -116,6 +118,7 @@ func (s *Server) handleJoinCommand(conn net.Conn) error {
 	return nil
 }
 
+// handleGetCommand
 func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) error {
 	resp := transport.ResponseGet{}
 	value, err := s.cache.Get(cmd.Key)
@@ -132,6 +135,7 @@ func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) erro
 	return err
 }
 
+// handleSetCommand
 func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) error {
 	s.Log.Info(fmt.Sprintf("SET %s to %s", cmd.Key, cmd.Value))
 
