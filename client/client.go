@@ -51,7 +51,7 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	}
 
 	if resp.Status != transport.StatusOK {
-		return nil, fmt.Errorf("server responsed with noe OK status [%s]", resp.Status)
+		return nil, fmt.Errorf("server responsed with not OK status [%s]", resp.Status)
 	}
 	return resp.Value, nil
 }

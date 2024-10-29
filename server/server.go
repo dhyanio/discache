@@ -45,7 +45,6 @@ func (s *Server) Start() error {
 		return fmt.Errorf("listen error: %s", err)
 	}
 
-	s.Log.Info("working3")
 	if !s.IsLeader && len(s.LeaderAddr) != 0 {
 		go func() {
 			if err := s.dialLeader(); err != nil {

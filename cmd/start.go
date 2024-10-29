@@ -70,13 +70,12 @@ func startServer(role, port, leaderPort string) {
 	}()
 
 	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
-
-	cc := cache.NewCache(3, 5*time.Second, func(key string, value []byte) {
+	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
 		fmt.Printf("Evicted: %s -> %s\n", key, value)
 	})
 
 	server := server.NewServer(opts, cc)
-	
+
 	fmt.Println("IsLeader", opts.IsLeader)
 
 	if err := server.Start(); err != nil {
@@ -91,7 +90,7 @@ func randomByte(n int) []byte {
 }
 
 func SendStuff(log *logger.Logger) {
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 7; i++ {
 		go func(i int) {
 			client, err := client.New(":3000", client.Options{})
 			if err != nil {
@@ -107,11 +106,13 @@ func SendStuff(log *logger.Logger) {
 				log.Fatal(err.Error())
 			}
 
+			fmt.Println("get", string(key))
 			resp, err := client.Get(context.Background(), key)
 			if err != nil {
 				log.Fatal(err.Error())
 			}
-			log.Info(string(resp))
+			// log.Info(string(resp))
+			fmt.Println(string(resp))
 
 			client.Close()
 		}(i)
