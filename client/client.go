@@ -3,16 +3,18 @@ package client
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 
+	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/transport"
 )
 
 type Options struct {
+	Log *logger.Logger
 }
 
 type Client struct {
+	Options
 	conn net.Conn
 }
 
@@ -25,10 +27,11 @@ func NewFromConn(conn net.Conn) *Client {
 func New(endpoint string, opts Options) (*Client, error) {
 	conn, err := net.Dial("tcp", endpoint)
 	if err != nil {
-		log.Fatal(err)
+		opts.Log.Fatal(err.Error())
 	}
 	return &Client{
-		conn: conn,
+		Options: opts,
+		conn:    conn,
 	}, nil
 }
 
@@ -46,13 +49,21 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.Status == transport.StatusExpired {
+		c.Log.Warn(fmt.Sprintf("key [%s] expired", key))
+		return nil, nil
+	}
+
 	if resp.Status == transport.StatusKeyNotFound {
-		return nil, fmt.Errorf("key [%s] not present", key)
+		c.Log.Warn(fmt.Sprintf("key [%s] not present", key))
+		return nil, nil
 	}
 
 	if resp.Status != transport.StatusOK {
 		return nil, fmt.Errorf("server responsed with not OK status [%s]", resp.Status)
 	}
+
 	return resp.Value, nil
 }
 

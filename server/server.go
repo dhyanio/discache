@@ -12,6 +12,7 @@ import (
 	"github.com/dhyanio/discache/client"
 	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/transport"
+	"github.com/dhyanio/discache/util"
 )
 
 // ServerOpts represents the options for a cache server
@@ -122,14 +123,24 @@ func (s *Server) handleJoinCommand(conn net.Conn) error {
 func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) error {
 	resp := transport.ResponseGet{}
 	value, err := s.cache.Get(cmd.Key)
+
 	if err != nil {
 		resp.Status = transport.StatusError
+		switch err.(type) {
+		case *util.ExpiredKeyError:
+			resp.Status = transport.StatusExpired
+		case *util.KeyNotFoundError:
+			resp.Status = transport.StatusKeyNotFound
+		default:
+			resp.Status = transport.StatusError
+		}
+
 		_, err := conn.Write(resp.Bytes())
 		return err
 	}
+
 	resp.Status = transport.StatusOK
 	resp.Value = value
-
 	_, err = conn.Write(resp.Bytes())
 
 	return err

@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 	"time"
+
+	"github.com/dhyanio/discache/util"
 )
 
 // Cache represents LRU cache
@@ -42,14 +43,14 @@ func (c *Cache) Get(key []byte) ([]byte, error) {
 		if c.ttl > 0 && time.Since(c.timestamps[string(key)]) > c.ttl {
 			c.remove(strKey) // Expire the item if TTL has elapsed
 			c.misses++
-			return nil, fmt.Errorf("expired key %s so removed from casech server", strKey)
+			return nil, &util.ExpiredKeyError{Key: strKey}
 		}
 		c.hits++
 		c.updateOrder(strKey) // Move the accessed key to the end of the order slice
 		return value, nil
 	}
 	c.misses++
-	return nil, fmt.Errorf("key %s not found", strKey)
+	return nil, &util.KeyNotFoundError{Key: strKey}
 }
 
 // Put adds or updates an item in the cache

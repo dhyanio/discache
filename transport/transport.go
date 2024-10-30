@@ -26,7 +26,9 @@ func (s Status) String() string {
 	case StatusOK:
 		return "OK"
 	case StatusKeyNotFound:
-		return "key not found"
+		return "NOTFOUND"
+	case StatusExpired:
+		return "EXPIRED"
 	default:
 		return "NONE"
 	}
@@ -37,6 +39,7 @@ const (
 	StatusOK
 	StatusError
 	StatusKeyNotFound
+	StatusExpired
 )
 
 type ResponseSet struct {

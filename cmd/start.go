@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// startCmd
 func startCmd() *cobra.Command {
 	command := cobra.Command{
 		Use:   "start",
@@ -25,6 +26,7 @@ func startCmd() *cobra.Command {
 	return &command
 }
 
+// startServer
 func startServer(role, port, leaderPort string) {
 	var opts server.ServerOpts
 
@@ -90,9 +92,9 @@ func randomByte(n int) []byte {
 }
 
 func SendStuff(log *logger.Logger) {
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 70; i++ {
 		go func(i int) {
-			client, err := client.New(":3000", client.Options{})
+			client, err := client.New(":3000", client.Options{Log: log})
 			if err != nil {
 				log.Fatal(err.Error())
 			}
@@ -111,14 +113,13 @@ func SendStuff(log *logger.Logger) {
 			if err != nil {
 				log.Fatal(err.Error())
 			}
-			// log.Info(string(resp))
-			fmt.Println(string(resp))
-
+			log.Info(string(resp))
 			client.Close()
 		}(i)
 	}
 }
 
+// leaderCmd
 var leaderCmd = cobra.Command{
 	Use:   "leader [port]",
 	Short: "Start a leader server",
@@ -129,6 +130,7 @@ var leaderCmd = cobra.Command{
 	},
 }
 
+// nodeCmd
 var nodeCmd = cobra.Command{
 	Use:   "node [port] [leader [leaderPort]]",
 	Short: "Start a node server, optionally specifying a leader",
