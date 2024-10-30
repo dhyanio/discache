@@ -2,7 +2,74 @@
 
 <img src="./doc/discache.png" alt="Discache" width="700"/>
 
-Discache, is a powerfull, but simple LRU cache in golang. Using TCP and binary a as transporter which makes it very profomant.
+Discache, is a powerfull, but simple LRU cache in golang. Using TCP and binary as a transporter which makes it very performant.
+
+## CLI
+A CLI tool has commands
+
+### Requirements
+- Go (version 1.17 or later)
+
+### Makefile Targets
+#### Variables
+- `LISTEN_ADDR` - Address for the server to listen on (default: `:4000`).
+- `LEADER_ADDR` - Address of the leader node (default: `:3000`).
+
+These can be passed as arguments when running specific commands.
+
+### Usage
+- Build the Project
+
+```bash
+make build
+```
+Builds the Go binary and places it in the bin/ directory.
+
+- Run the Project
+
+```bash
+make run
+```
+Runs the binary after building it.
+
+- Run the Tests
+
+```bash
+make test
+```
+Runs all tests with verbose output.
+
+- Lint the Project
+
+```bash
+make lint
+```
+Runs golangci-lint on the codebase. Ensure golangci-lint is installed.
+
+- Format the Code
+
+```bash
+make fmt
+```
+Formats the code using go fmt.
+
+- Clean the Build Files
+
+```bash
+make clean
+```
+Removes the bin/ directory and all generated files.
+
+### Example Usage
+To start a leader
+```bash
+make run LISTEN_ADDR=:3000
+```
+
+To start a follower node with a custom `LISTEN_ADDR` and `LEADER_ADDR`
+```bash
+make leader LISTEN_ADDR=:3001 LEADER_ADDR=:3000
+```
 
 ## Client
 A Go client for connecting to an LRU cache server over TCP. This client allows users to perform Get and Put operations on the cache, handling network communication and TTL (time-to-live) for cache entries.

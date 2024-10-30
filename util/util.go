@@ -17,4 +17,3 @@ type KeyNotFoundError struct {
 func (e *KeyNotFoundError) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
-
