@@ -7,22 +7,22 @@ import (
 )
 
 const (
-	longAppDesc = "Discache is a distributed cacher server."
+	appVersion  = "v0.0.1-dev"
+	longAppDesc = "Discache is a distributed cache server"
 )
 
 var (
-	version = "v0.0.1-dev"
-
 	rootCmd = &cobra.Command{
 		Long: longAppDesc,
 	}
 )
 
+// flagError is an error type for flag errors
 type flagError struct{ err error }
 
 func (e flagError) Error() string { return e.err.Error() }
 
-// Execute root command.
+// Execute runs the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.As(err, &flagError{}) {

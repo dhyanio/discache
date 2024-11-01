@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is the version of the application
 func versionCmd() *cobra.Command {
 	command := cobra.Command{
 		Use:   "version",
@@ -21,5 +22,5 @@ func versionCmd() *cobra.Command {
 }
 
 func printVersion() {
-	fmt.Println("discache version", version, runtime.GOOS)
+	fmt.Println("discache version", appVersion, runtime.GOOS)
 }

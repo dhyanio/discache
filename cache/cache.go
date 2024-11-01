@@ -7,8 +7,7 @@ import (
 	"github.com/dhyanio/discache/util"
 )
 
-// Cache represents LRU cache
-
+// Cache is an in-memory key-value store with a fixed capacity and TTL
 type Cache struct {
 	capacity                int
 	ttl                     time.Duration
@@ -20,7 +19,7 @@ type Cache struct {
 	timestamps              map[string]time.Time
 }
 
-// NewCache creates a new Cache
+// NewCache creates a new cache with the specified capacity, TTL, and eviction callback
 func NewCache(capacity int, ttl time.Duration, onEvict func(key string, value []byte)) *Cache {
 	return &Cache{
 		capacity:   capacity,
@@ -32,7 +31,7 @@ func NewCache(capacity int, ttl time.Duration, onEvict func(key string, value []
 	}
 }
 
-// Get retrieves an item from the cache and updates its position in the LRU order.
+// Get retrieves an item from the cache and updates its usage
 func (c *Cache) Get(key []byte) ([]byte, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -53,7 +52,7 @@ func (c *Cache) Get(key []byte) ([]byte, error) {
 	return nil, &util.KeyNotFoundError{Key: strKey}
 }
 
-// Put adds or updates an item in the cache
+// Put inserts an item into the cache and updates its usage
 func (c *Cache) Put(key, value []byte, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -78,7 +77,7 @@ func (c *Cache) Put(key, value []byte, ttl time.Duration) error {
 	return nil
 }
 
-// Has checks if an item exists without updating its usage
+// Has checks if a key exists in the cache
 func (c *Cache) Has(key []byte) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -93,14 +92,14 @@ func (c *Cache) Has(key []byte) bool {
 	return false
 }
 
-// Stats returns cache statistics
+// Stats returns the cache hit, miss, and eviction counts
 func (c *Cache) Stats() (hits, misses, evictions int) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.hits, c.misses, c.evictions
 }
 
-// evict removes the least recently used item
+// evict removes the least recently used item from the cache
 func (c *Cache) evict() {
 	if len(c.order) == 0 {
 		return
@@ -110,7 +109,7 @@ func (c *Cache) evict() {
 	c.evictions++
 }
 
-// remove deletes a key from the cache and updates the LRU order
+// remove deletes an item from the cache
 func (c *Cache) remove(key string) {
 	if _, found := c.items[key]; found {
 		delete(c.items, key)

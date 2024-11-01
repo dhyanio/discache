@@ -9,21 +9,25 @@ import (
 	"github.com/dhyanio/discache/transport"
 )
 
+// Options is the configuration for the client
 type Options struct {
 	Log *logger.Logger
 }
 
+// Client is the client to interact with the server
 type Client struct {
 	Options
 	conn net.Conn
 }
 
+// NewFromConn creates a new client from an existing connection
 func NewFromConn(conn net.Conn) *Client {
 	return &Client{
 		conn: conn,
 	}
 }
 
+// New creates a new client
 func New(endpoint string, opts Options) (*Client, error) {
 	conn, err := net.Dial("tcp", endpoint)
 	if err != nil {
@@ -35,6 +39,7 @@ func New(endpoint string, opts Options) (*Client, error) {
 	}, nil
 }
 
+// Get gets the value for the key from the server
 func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	cmd := &transport.CommandGet{
 		Key: key,
@@ -67,6 +72,7 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	return resp.Value, nil
 }
 
+// Put puts the key value pair in the server
 func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
 	cmd := &transport.CommandSet{
 		Key:   key,
@@ -89,6 +95,7 @@ func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
 	return nil
 }
 
+// Close closes the connection
 func (c *Client) Close() error {
 	return c.conn.Close()
 }
