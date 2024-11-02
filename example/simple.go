@@ -14,7 +14,7 @@ func main() {
 	logFile, _ := os.Create("discache.log")
 	defer logFile.Close()
 
-	log := logger.NewLogger(logger.INFO, nil)
+	log := logger.NewLogger(logger.INFO, logFile)
 
 	SendStuff(log)
 }

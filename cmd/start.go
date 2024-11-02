@@ -30,7 +30,7 @@ func startServer(role, port, leaderPort string) {
 	logFile, _ := os.Create("discache.log")
 	defer logFile.Close()
 
-	log := logger.NewLogger(logger.INFO, nil)
+	log := logger.NewLogger(logger.INFO, logFile)
 
 	if role == "leader" {
 		fmt.Printf("Starting leader on port %s\n", port)
