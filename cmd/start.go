@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"context"
-	"crypto/rand"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
-	"github.com/dhyanio/discache/client"
 	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/server"
 	"github.com/spf13/cobra"
@@ -64,13 +60,6 @@ func startServer(role, port, leaderPort string) {
 		}
 	}
 
-	go func() {
-		if opts.IsLeader {
-			time.Sleep(time.Second * 10)
-			SendStuff(log)
-		}
-	}()
-
 	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
 	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
 		fmt.Printf("Evicted: %s -> %s\n", key, value)
@@ -82,40 +71,6 @@ func startServer(role, port, leaderPort string) {
 
 	if err := server.Start(); err != nil {
 		log.Fatal(err.Error())
-	}
-}
-
-func randomByte(n int) []byte {
-	buf := make([]byte, n)
-	io.ReadFull(rand.Reader, buf)
-	return buf
-}
-
-func SendStuff(log *logger.Logger) {
-	for i := 0; i < 70; i++ {
-		go func(i int) {
-			client, err := client.New(":3000", client.Options{Log: log})
-			if err != nil {
-				log.Fatal(err.Error())
-			}
-
-			var (
-				key   = []byte(fmt.Sprintf("test_key_%d", i))
-				value = []byte(fmt.Sprintf("test_value_%d", i))
-			)
-			err = client.Put(context.Background(), key, value, 0)
-			if err != nil {
-				log.Fatal(err.Error())
-			}
-
-			fmt.Println("get", string(key))
-			resp, err := client.Get(context.Background(), key)
-			if err != nil {
-				log.Fatal(err.Error())
-			}
-			log.Info(string(resp))
-			client.Close()
-		}(i)
 	}
 }
 
