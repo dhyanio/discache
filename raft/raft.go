@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -12,10 +13,42 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
-type demoFSM struct{}
+// Command structure for key-value updates
+type Command struct {
+	Op    string // Operation type, e.g., "set"
+	Key   string // Key to set
+	Value string // Value to associate with the key
+}
 
-func (f *demoFSM) Apply(log *raft.Log) interface{} {
-	fmt.Printf("Applying command: %s\n", string(log.Data))
+// demoFSM with a key-value map
+type demoFSM struct {
+	kvStore map[string]string
+}
+
+// NewDemoFSM initializes the FSM with an empty kvStore.
+func NewDemoFSM() *demoFSM {
+	return &demoFSM{
+		kvStore: make(map[string]string),
+	}
+}
+
+func (f *demoFSM) Apply(log *raft.Log) any {
+	// Decode the command from the Log entry
+	var cmd Command
+	if err := json.Unmarshal(log.Data, &cmd); err != nil {
+		fmt.Printf("Failed to unmarshal command: %v\n", err)
+		return nil
+	}
+
+	// Apply the command to the kvStore
+	if cmd.Op == "set" {
+		f.kvStore[cmd.Key] = cmd.Value
+		fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
+	}
+
+	// Print the current state of the kvStore
+	fmt.Printf("Current kvStore state: %v\n", f.kvStore)
+
 	return nil
 }
 
@@ -63,7 +96,7 @@ func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft,
 		return nil, fmt.Errorf("failed to create transport: %v", err)
 	}
 
-	raftNode, err := raft.NewRaft(config, &demoFSM{}, logStore, stableStore, snapshotStore, transport)
+	raftNode, err := raft.NewRaft(config, NewDemoFSM(), logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Raft: %v", err)
 	}
@@ -96,16 +129,38 @@ func main() {
 		log.Fatalf("Error starting node %s: %v", nodeID, err)
 	}
 
+	// Display the current leader periodically
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			leader := raftNode.Leader()
+			fmt.Printf("Current leader: %s\n", leader)
+		}
+	}()
+
 	// Apply command only on the leader node
 	if nodeID == "node1" {
 		go func() {
-			time.Sleep(30 * time.Second)
-			command := []byte("Hello, Raft!")
-			future := raftNode.Apply(command, 5*time.Second)
-			if err := future.Error(); err != nil {
-				fmt.Printf("Error applying command: %v\n", err)
+			time.Sleep(40 * time.Second) // Wait for Raft to initialize
+
+			// Check if this node is the Leader
+			if raftNode.Leader() == raft.ServerAddress(address) {
+				// Example command to set a key-value pair
+				cmd := Command{
+					Op:    "set",
+					Key:   "foo",
+					Value: "bar",
+				}
+				commandData, _ := json.Marshal(cmd)
+
+				future := raftNode.Apply(commandData, 5*time.Second)
+				if err := future.Error(); err != nil {
+					fmt.Printf("Error applying command: %v\n", err)
+				} else {
+					fmt.Println("Command applied successfully")
+				}
 			} else {
-				fmt.Println("Command applied successfully")
+				fmt.Println("This node is not the leader. Cannot apply commands.")
 			}
 		}()
 	}
