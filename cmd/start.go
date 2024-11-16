@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
 	"github.com/dhyanio/discache/logger"
+
+	rafter "github.com/dhyanio/discache/raft"
 	"github.com/dhyanio/discache/server"
 	"github.com/spf13/cobra"
 )
@@ -18,99 +21,79 @@ func startCmd() *cobra.Command {
 		Short: "Start cache server nodes",
 		Long:  "Start cache server nodes, either as a leader or a node connected to a leader",
 	}
-	command.AddCommand(&leaderCmd, &nodeCmd)
+	command.AddCommand(&nodeCmd)
 	return &command
-}
-
-// startServer starts a server with the specified role, port, and leader port
-func startServer(role, port, leaderPort string) {
-	var opts server.ServerOpts
-
-	// Initialize Logger
-	logFile, _ := os.Create("discache.log")
-	defer logFile.Close()
-
-	log := logger.NewLogger(logger.INFO, logFile)
-
-	if role == "leader" {
-		fmt.Printf("Starting leader on port %s\n", port)
-		opts = server.ServerOpts{
-			ListenAddr: port,
-			IsLeader:   len(leaderPort) == 0,
-			LeaderAddr: leaderPort,
-			Log:        log,
-		}
-	} else {
-		if leaderPort != "" {
-			fmt.Printf("Starting node on port %s with leader at %s\n", port, leaderPort)
-			opts = server.ServerOpts{
-				ListenAddr: port,
-				IsLeader:   len(leaderPort) == 0,
-				LeaderAddr: leaderPort,
-				Log:        log,
-			}
-		} else {
-			fmt.Printf("Starting node on port %s\n", port)
-			opts = server.ServerOpts{
-				ListenAddr: port,
-				IsLeader:   len(leaderPort) == 0,
-				LeaderAddr: leaderPort,
-				Log:        log,
-			}
-		}
-	}
-
-	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
-	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
-		fmt.Printf("Evicted: %s -> %s\n", key, value)
-	})
-
-	server := server.NewServer(opts, cc)
-
-	fmt.Println("IsLeader", opts.IsLeader)
-
-	if err := server.Start(); err != nil {
-		log.Fatal(err.Error())
-	}
-}
-
-// leaderCmd creates the leader command
-var leaderCmd = cobra.Command{
-	Use:   "leader [port]",
-	Short: "Start a leader server",
-	Long:  "Start a leader server with the specified port",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		startServer("leader", args[0], "")
-	},
 }
 
 // nodeCmd creates the node command
 var nodeCmd = cobra.Command{
-	Use:   "node [port] [leader [leaderPort]]",
+	Use: "node [nodeName] [nodeEndpoint] [leader [leaderName]]",
+	// Use:   "node [name] [leader [leaderPort]]",
 	Short: "Start a node server, optionally specifying a leader",
-	Long:  "Start a node server on the specified port, optionally specifying a leader port",
+	Long:  "Start a node server on the specified port, optionally specifying a leader name",
 	Args:  cobra.MinimumNArgs(1), // At least the node port is required
 	Run: func(cmd *cobra.Command, args []string) {
-		nodePort := args[0]
-		leaderPort := ""
+		nodeName := args[0]
+		nodeEndpoint := args[1]
+		leaderName := ""
+		isLeader := true
 
-		if len(args) > 1 {
+		if len(args) > 2 {
 			// Validate if "leader" keyword is provided with correct format
-			if args[1] == "leader" {
-				if len(args) == 3 {
-					leaderPort = args[2]
+			if args[2] == "leader" {
+				if len(args) == 4 {
+					leaderName = args[3]
+					isLeader = false
 				} else {
-					// Print error if "leader" keyword is used but the port is missing
-					fmt.Println("Error: 'leader' specified without port. Use 'discache start node [port]' for a standalone node or 'discache start node [port] leader [leaderPort]' for a node with leader.")
+					// Print error if "leader" keyword is used but the name is missing
+					fmt.Println("Error: 'leader' specified without name. Use 'discache start node [port]' for a standalone node or 'discache start node [nodeName] [nodeEndpoint] leader [leaderName]' for a node with leader.")
 					os.Exit(1)
 				}
 			} else {
 				// Print error if invalid argument is provided after the port
-				fmt.Printf("Error: Unknown argument '%s'. Use 'leader [leaderPort]' after the port to specify a leader.\n", args[1])
+				fmt.Printf("Error: Unknown argument '%s'. Use 'leader [leaderName]' after the name to specify a leader.\n", args[1])
 				os.Exit(1)
 			}
 		}
-		startServer("node", nodePort, leaderPort)
+
+		// Initialize Logger
+		logFile, _ := os.Create("discache.log")
+		defer logFile.Close()
+
+		log := logger.NewLogger(logger.INFO, logFile)
+
+		opts := server.ServerOpts{
+			Name:       nodeName,
+			ListenAddr: nodeEndpoint,
+			IsLeader:   isLeader,
+			LeaderAddr: leaderName,
+			Log:        log,
+		}
+		startServer(opts)
 	},
+}
+
+// startServer starts a server with the specified role, port, and leader port
+func startServer(opts server.ServerOpts) {
+	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
+	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
+		fmt.Printf("Evicted: %s -> %s\n", key, value)
+	})
+	raftSever(cc, opts)
+	fmt.Println(opts)
+}
+
+// raftServer using raft Server and raft's own Transport layer
+func raftSever(cc *cache.Cache, opts server.ServerOpts) {
+	raftFSM := rafter.NewRaftFSM(cc)
+	rafter.Rafting(raftFSM, opts.Log)
+}
+
+// inhouseSever using inhouse Server and Transport layer
+func inhouseServer(cc *cache.Cache, opts server.ServerOpts) {
+	server := server.NewServer(opts, cc)
+	fmt.Println("IsLeader", opts.IsLeader)
+	if err := server.Start(); err != nil {
+		log.Fatal(err.Error())
+	}
 }

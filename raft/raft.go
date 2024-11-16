@@ -1,14 +1,15 @@
-package main
+package rafter
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"time"
 
+	"github.com/dhyanio/discache/cache"
+	"github.com/dhyanio/discache/logger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
@@ -20,43 +21,43 @@ type Command struct {
 	Value string // Value to associate with the key
 }
 
-// demoFSM with a key-value map
-type demoFSM struct {
-	kvStore map[string]string
+// raftFSM with cache
+type raftFSM struct {
+	cache *cache.Cache
 }
 
 // NewDemoFSM initializes the FSM with an empty kvStore.
-func NewDemoFSM() *demoFSM {
-	return &demoFSM{
-		kvStore: make(map[string]string),
+func NewRaftFSM(cache *cache.Cache) *raftFSM {
+	return &raftFSM{
+		cache: cache,
 	}
 }
 
-func (f *demoFSM) Apply(log *raft.Log) any {
-	// Decode the command from the Log entry
-	var cmd Command
-	if err := json.Unmarshal(log.Data, &cmd); err != nil {
-		fmt.Printf("Failed to unmarshal command: %v\n", err)
-		return nil
-	}
+func (f *raftFSM) Apply(log *raft.Log) any {
+	// // Decode the command from the Log entry
+	// var cmd Command
+	// if err := json.Unmarshal(log.Data, &cmd); err != nil {
+	// 	fmt.Printf("Failed to unmarshal command: %v\n", err)
+	// 	return nil
+	// }
 
-	// Apply the command to the kvStore
-	if cmd.Op == "set" {
-		f.kvStore[cmd.Key] = cmd.Value
-		fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
-	}
+	// // Apply the command to the kvStore
+	// if cmd.Op == "set" {
+	// 	f.kvStore[cmd.Key] = cmd.Value
+	// 	fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
+	// }
 
-	// Print the current state of the kvStore
-	fmt.Printf("Current kvStore state: %v\n", f.kvStore)
+	// // Print the current state of the kvStore
+	fmt.Printf("Current kvStore state: %v\n", log.Data)
 
 	return nil
 }
 
-func (f *demoFSM) Snapshot() (raft.FSMSnapshot, error) {
+func (f *raftFSM) Snapshot() (raft.FSMSnapshot, error) {
 	return &demoSnapshot{}, nil
 }
 
-func (f *demoFSM) Restore(io.ReadCloser) error {
+func (f *raftFSM) Restore(io.ReadCloser) error {
 	return nil
 }
 
@@ -68,6 +69,7 @@ func (s *demoSnapshot) Persist(sink raft.SnapshotSink) error {
 
 func (s *demoSnapshot) Release() {}
 
+// CreateRaftNode
 func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(id)
@@ -96,7 +98,7 @@ func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft,
 		return nil, fmt.Errorf("failed to create transport: %v", err)
 	}
 
-	raftNode, err := raft.NewRaft(config, NewDemoFSM(), logStore, stableStore, snapshotStore, transport)
+	raftNode, err := raft.NewRaft(config, NewRaftFSM(nil), logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Raft: %v", err)
 	}
@@ -109,9 +111,10 @@ func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft,
 	return raftNode, nil
 }
 
-func main() {
+// Rafting
+func Rafting(rafter *raftFSM, log *logger.Logger) {
 	if len(os.Args) < 3 {
-		log.Fatalf("Usage: %s <node_id> <address>", os.Args[0])
+		log.Fatal("Usage: %s <node_id> <address>", os.Args[0])
 	}
 	nodeID := os.Args[1]
 	address := os.Args[2]
@@ -126,15 +129,15 @@ func main() {
 	// Create the Raft node
 	raftNode, err := createRaftNode(nodeID, address, peers)
 	if err != nil {
-		log.Fatalf("Error starting node %s: %v", nodeID, err)
+		log.Fatal("Error starting node %s: %v", nodeID, err)
 	}
 
 	// Display the current leader periodically
 	go func() {
 		for {
-			time.Sleep(5 * time.Second)
+			time.Sleep(20 * time.Second)
 			leader := raftNode.Leader()
-			fmt.Printf("Current leader: %s\n", leader)
+			log.Info("Current leader: %s\n", leader)
 		}
 	}()
 
@@ -155,15 +158,13 @@ func main() {
 
 				future := raftNode.Apply(commandData, 5*time.Second)
 				if err := future.Error(); err != nil {
-					fmt.Printf("Error applying command: %v\n", err)
+					log.Info("Error applying command: %v\n", err)
 				} else {
-					fmt.Println("Command applied successfully")
+					log.Info("Command applied successfully")
 				}
 			} else {
-				fmt.Println("This node is not the leader. Cannot apply commands.")
+				log.Info("This node is not the leader. Cannot apply commands.")
 			}
 		}()
 	}
-
-	select {}
 }

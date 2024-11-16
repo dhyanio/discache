@@ -63,12 +63,12 @@ Removes the bin/ directory and all generated files.
 ### Example Usage
 To start a leader
 ```bash
-make run LISTEN_ADDR=:3000
+make run NAME:node1 LISTEN_ADDR=:3000
 ```
 
 To start a follower node with a custom `LISTEN_ADDR` and `LEADER_ADDR`
 ```bash
-make leader LISTEN_ADDR=:3001 LEADER_ADDR=:3000
+make leader NAME=node1 LISTEN_ADDR=:3000 Leader_NAME=node1
 ```
 
 ## Client

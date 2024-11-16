@@ -7,10 +7,12 @@
 // initializes and runs the distributed cache server.
 //
 // Usage:
-//   To run the application, simply execute the compiled binary.
+//
+//	To run the application, simply execute the compiled binary.
 //
 // Example:
-//   $ ./discache
+//
+//	$ ./discache
 //
 // Dependencies:
 //   - github.com/dhyanio/discache/cmd: This package contains the command
