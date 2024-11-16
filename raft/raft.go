@@ -1,18 +1,18 @@
 package rafter
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
-	"github.com/dhyanio/discache/logger"
+	"github.com/dhyanio/discache/server"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
+
+const raftClusterElectionTimeout = 5 * time.Second
 
 // Command structure for key-value updates
 type Command struct {
@@ -69,42 +69,47 @@ func (s *demoSnapshot) Persist(sink raft.SnapshotSink) error {
 
 func (s *demoSnapshot) Release() {}
 
-// CreateRaftNode
-func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft, error) {
+// createRaftNodeWithCluster will create raft node and cluster
+func createRaftNodeWithCluster(opts server.ServerOpts, peers []raft.Server) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(id)
-	config.ElectionTimeout = 5 * time.Second
+	config.LocalID = raft.ServerID(opts.ID)
+	config.ElectionTimeout = raftClusterElectionTimeout
 
-	logStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-log-%s.bolt", id))
+	// Create logStore
+	logStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-log-%s.bolt", opts.ID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log store: %v", err)
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-stable-%s.bolt", id))
+	// Create stableStore
+	stableStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-stable-%s.bolt", opts.ID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stable store: %v", err)
 	}
 
+	// Create discardSnapshortStore
 	snapshotStore := raft.NewDiscardSnapshotStore()
 
 	// Convert the address to Raft's format
-	addr, err := net.ResolveTCPAddr("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", opts.ListenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve address: %v", err)
 	}
 
-	transport, err := raft.NewTCPTransport(address, addr, 3, 10*time.Second, nil)
+	// Create transporter
+	transport, err := raft.NewTCPTransport(opts.ListenAddr, addr, 3, 10*time.Second, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transport: %v", err)
 	}
 
+	// Construct a new Raft node
 	raftNode, err := raft.NewRaft(config, NewRaftFSM(nil), logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Raft: %v", err)
 	}
 
-	// Bootstrap only the first node
-	if id == "node1" {
+	// Bootstrap raft cluster on leader only
+	if opts.IsLeader {
 		raftNode.BootstrapCluster(raft.Configuration{Servers: peers})
 	}
 
@@ -112,13 +117,7 @@ func createRaftNode(id string, address string, peers []raft.Server) (*raft.Raft,
 }
 
 // Rafting
-func Rafting(rafter *raftFSM, log *logger.Logger) {
-	if len(os.Args) < 3 {
-		log.Fatal("Usage: %s <node_id> <address>", os.Args[0])
-	}
-	nodeID := os.Args[1]
-	address := os.Args[2]
-
+func Rafting(raftFSM *raftFSM, opts server.ServerOpts) {
 	// Define the cluster configuration with all nodes
 	peers := []raft.Server{
 		{ID: raft.ServerID("node1"), Address: raft.ServerAddress("127.0.0.1:8080")},
@@ -127,9 +126,9 @@ func Rafting(rafter *raftFSM, log *logger.Logger) {
 	}
 
 	// Create the Raft node
-	raftNode, err := createRaftNode(nodeID, address, peers)
+	raftNode, err := createRaftNodeWithCluster(opts, peers)
 	if err != nil {
-		log.Fatal("Error starting node %s: %v", nodeID, err)
+		opts.Log.Fatal("Error starting node %s: %v", opts.ID, err)
 	}
 
 	// Display the current leader periodically
@@ -137,34 +136,36 @@ func Rafting(rafter *raftFSM, log *logger.Logger) {
 		for {
 			time.Sleep(20 * time.Second)
 			leader := raftNode.Leader()
-			log.Info("Current leader: %s\n", leader)
+			opts.Log.Info("Current leader: %s\n", leader)
 		}
 	}()
 
-	// Apply command only on the leader node
-	if nodeID == "node1" {
-		go func() {
-			time.Sleep(40 * time.Second) // Wait for Raft to initialize
-
-			// Check if this node is the Leader
-			if raftNode.Leader() == raft.ServerAddress(address) {
-				// Example command to set a key-value pair
-				cmd := Command{
-					Op:    "set",
-					Key:   "foo",
-					Value: "bar",
-				}
-				commandData, _ := json.Marshal(cmd)
-
-				future := raftNode.Apply(commandData, 5*time.Second)
-				if err := future.Error(); err != nil {
-					log.Info("Error applying command: %v\n", err)
-				} else {
-					log.Info("Command applied successfully")
-				}
-			} else {
-				log.Info("This node is not the leader. Cannot apply commands.")
-			}
-		}()
-	}
+	// 
 }
+
+// raftClient sends commands to the cluster leader only
+// func raftClient(opts server.ServerOpts) {
+// 	go func() {
+// 		time.Sleep(40 * time.Second) // Wait for Raft to initialize
+
+// 		// Check if this node is the Leader
+// 		if raftNode.Leader() == raft.ServerAddress(address) {
+// 			// Example command to set a key-value pair
+// 			cmd := Command{
+// 				Op:    "set",
+// 				Key:   "foo",
+// 				Value: "bar",
+// 			}
+// 			commandData, _ := json.Marshal(cmd)
+
+// 			future := raftNode.Apply(commandData, 5*time.Second)
+// 			if err := future.Error(); err != nil {
+// 				opts.Log.Info("Error applying command: %v\n", err)
+// 			} else {
+// 				opts.Log.Info("Command applied successfully")
+// 			}
+// 		} else {
+// 			opts.Log.Info("This node is not the leader. Cannot apply commands.")
+// 		}
+// 	}()
+// }

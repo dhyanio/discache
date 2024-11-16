@@ -63,7 +63,7 @@ var nodeCmd = cobra.Command{
 		log := logger.NewLogger(logger.INFO, logFile)
 
 		opts := server.ServerOpts{
-			Name:       nodeName,
+			ID:       nodeName,
 			ListenAddr: nodeEndpoint,
 			IsLeader:   isLeader,
 			LeaderAddr: leaderName,
@@ -80,13 +80,13 @@ func startServer(opts server.ServerOpts) {
 		fmt.Printf("Evicted: %s -> %s\n", key, value)
 	})
 	raftSever(cc, opts)
-	fmt.Println(opts)
 }
 
 // raftServer using raft Server and raft's own Transport layer
 func raftSever(cc *cache.Cache, opts server.ServerOpts) {
 	raftFSM := rafter.NewRaftFSM(cc)
-	rafter.Rafting(raftFSM, opts.Log)
+	rafter.Rafting(raftFSM, opts)
+	select{}
 }
 
 // inhouseSever using inhouse Server and Transport layer

@@ -17,7 +17,7 @@ import (
 
 // ServerOpts represents the options for a cache server
 type ServerOpts struct {
-	Name       string
+	ID         string
 	ListenAddr string
 	IsLeader   bool
 	LeaderAddr string
