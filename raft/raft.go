@@ -1,9 +1,12 @@
 package rafter
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
@@ -23,31 +26,33 @@ type Command struct {
 
 // raftFSM with cache
 type raftFSM struct {
-	cache *cache.Cache
+	// cache *cache.Cache
+	kvStore map[string]string
 }
 
 // NewDemoFSM initializes the FSM with an empty kvStore.
 func NewRaftFSM(cache *cache.Cache) *raftFSM {
 	return &raftFSM{
-		cache: cache,
+		// cache: cache,
+		kvStore: make(map[string]string),
 	}
 }
 
 func (f *raftFSM) Apply(log *raft.Log) any {
-	// // Decode the command from the Log entry
-	// var cmd Command
-	// if err := json.Unmarshal(log.Data, &cmd); err != nil {
-	// 	fmt.Printf("Failed to unmarshal command: %v\n", err)
-	// 	return nil
-	// }
+	// Decode the command from the Log entry
+	var cmd Command
+	if err := json.Unmarshal(log.Data, &cmd); err != nil {
+		fmt.Printf("Failed to unmarshal command: %v\n", err)
+		return nil
+	}
 
-	// // Apply the command to the kvStore
-	// if cmd.Op == "set" {
-	// 	f.kvStore[cmd.Key] = cmd.Value
-	// 	fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
-	// }
+	// Apply the command to the kvStore
+	if cmd.Op == "set" {
+		f.kvStore[cmd.Key] = cmd.Value
+		fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
+	}
 
-	// // Print the current state of the kvStore
+	// Print the current state of the kvStore
 	fmt.Printf("Current kvStore state: %v\n", log.Data)
 
 	return nil
@@ -140,7 +145,60 @@ func Rafting(raftFSM *raftFSM, opts server.ServerOpts) {
 		}
 	}()
 
-	// 
+	go startHTTPServer(raftNode, "127.0.0.1:9082", opts.ListenAddr)
+	// run tcp
+}
+
+func startHTTPServer(raftNode *raft.Raft, address, nodeAddress string) {
+	http.HandleFunc("/apply", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
+			return
+		}
+
+		fmt.Println("Leader: ", raftNode.Leader())
+		fmt.Println("Node: ", raft.ServerAddress(nodeAddress))
+
+		// Decode the command from the request body
+		var cmd Command
+		commandData, _ := json.Marshal(cmd)
+
+		// Redirect to the leader if this node is not the leader
+		if raftNode.Leader() != raft.ServerAddress(nodeAddress) {
+			fmt.Println("Calling leader")
+			leader := raftNode.Leader()
+
+			if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
+				return
+			}
+			// Apply the command to the Raft log
+			future := raftNode.Apply(commandData, 5*time.Second)
+			if err := future.Error(); err != nil {
+				http.Error(w, fmt.Sprintf("Failed to apply command: %v", err), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// Apply the command to the Raft log
+		future := raftNode.Apply(commandData, 5*time.Second)
+		if err := future.Error(); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to apply command: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Command applied successfully"))
+	})
+
+	log.Printf("Starting HTTP server on %s", address)
+	log.Fatal(http.ListenAndServe(address, nil))
 }
 
 // raftClient sends commands to the cluster leader only
