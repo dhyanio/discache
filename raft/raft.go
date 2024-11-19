@@ -15,7 +15,10 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
-const raftClusterElectionTimeout = 5 * time.Second
+const (
+	raftClusterElectionTimeout = 5 * time.Second
+	nodeHTTPServer             = ":9080" // HTTP server default port for the node
+)
 
 // Command structure for key-value updates
 type Command struct {
@@ -145,11 +148,11 @@ func Rafting(raftFSM *raftFSM, opts server.ServerOpts) {
 		}
 	}()
 
-	go startHTTPServer(raftNode, "127.0.0.1:9082", opts.ListenAddr)
-	// run tcp
+	go startHTTPServer(raftNode, nodeHTTPServer, opts.ListenAddr)
 }
 
-func startHTTPServer(raftNode *raft.Raft, address, nodeAddress string) {
+// startHTTPServer will start the HTTP server for the raft node
+func startHTTPServer(raftNode *raft.Raft, addressNodeHTTP, addressNode string) {
 	http.HandleFunc("/apply", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
@@ -157,34 +160,28 @@ func startHTTPServer(raftNode *raft.Raft, address, nodeAddress string) {
 		}
 
 		fmt.Println("Leader: ", raftNode.Leader())
-		fmt.Println("Node: ", raft.ServerAddress(nodeAddress))
+		fmt.Println("Node: ", raft.ServerAddress(addressNode))
+
+		// Redirect to the leader if this node is not the leader
+		if raftNode.Leader() != raft.ServerAddress(addressNode) {
+			leaderHost, _, err := net.SplitHostPort(string(raftNode.Leader()))
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to parse leader address: %v", err), http.StatusInternalServerError)
+				return
+			}
+			leaderHTTPAddr := fmt.Sprintf("%s%s", leaderHost, addressNodeHTTP)
+			http.Redirect(w, r, fmt.Sprintf("http://%s/apply", leaderHTTPAddr), http.StatusTemporaryRedirect)
+			return
+		}
 
 		// Decode the command from the request body
 		var cmd Command
-		commandData, _ := json.Marshal(cmd)
-
-		// Redirect to the leader if this node is not the leader
-		if raftNode.Leader() != raft.ServerAddress(nodeAddress) {
-			fmt.Println("Calling leader")
-			leader := raftNode.Leader()
-
-			if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
-				http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
-				return
-			}
-			// Apply the command to the Raft log
-			future := raftNode.Apply(commandData, 5*time.Second)
-			if err := future.Error(); err != nil {
-				http.Error(w, fmt.Sprintf("Failed to apply command: %v", err), http.StatusInternalServerError)
-				return
-			}
-			return
-		}
 
 		if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 			http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
 			return
 		}
+		commandData, _ := json.Marshal(cmd)
 
 		// Apply the command to the Raft log
 		future := raftNode.Apply(commandData, 5*time.Second)
@@ -197,33 +194,6 @@ func startHTTPServer(raftNode *raft.Raft, address, nodeAddress string) {
 		w.Write([]byte("Command applied successfully"))
 	})
 
-	log.Printf("Starting HTTP server on %s", address)
-	log.Fatal(http.ListenAndServe(address, nil))
+	log.Printf("Starting HTTP server on %s", addressNodeHTTP)
+	log.Fatal(http.ListenAndServe(addressNodeHTTP, nil))
 }
-
-// raftClient sends commands to the cluster leader only
-// func raftClient(opts server.ServerOpts) {
-// 	go func() {
-// 		time.Sleep(40 * time.Second) // Wait for Raft to initialize
-
-// 		// Check if this node is the Leader
-// 		if raftNode.Leader() == raft.ServerAddress(address) {
-// 			// Example command to set a key-value pair
-// 			cmd := Command{
-// 				Op:    "set",
-// 				Key:   "foo",
-// 				Value: "bar",
-// 			}
-// 			commandData, _ := json.Marshal(cmd)
-
-// 			future := raftNode.Apply(commandData, 5*time.Second)
-// 			if err := future.Error(); err != nil {
-// 				opts.Log.Info("Error applying command: %v\n", err)
-// 			} else {
-// 				opts.Log.Info("Command applied successfully")
-// 			}
-// 		} else {
-// 			opts.Log.Info("This node is not the leader. Cannot apply commands.")
-// 		}
-// 	}()
-// }
