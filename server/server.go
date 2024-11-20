@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -82,12 +81,10 @@ func (s *Server) handleCommand(conn net.Conn, cmd any) {
 }
 
 // handleGetCommand handles the GET command
-func (s *Server) handleGetCommand(conn net.Conn, cmd any) error {
+func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) error {
 	resp := transport.ResponseGet{}
 
-	commandData, _ := json.Marshal(cmd)
-
-	future := s.RaftNode.Apply(commandData, 5*time.Second)
+	future := s.RaftNode.Apply(cmd.Bytes(), 5*time.Second)
 	if future.Error() != nil {
 		resp.Status = transport.StatusError
 		_, err := conn.Write(resp.Bytes())
@@ -114,9 +111,7 @@ func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) erro
 
 	resp := transport.ResponseSet{}
 
-	commandData, _ := json.Marshal(cmd)
-
-	future := s.RaftNode.Apply(commandData, 5*time.Second)
+	future := s.RaftNode.Apply(cmd.Bytes(), 5*time.Second)
 	if future.Error() != nil {
 		resp.Status = transport.StatusError
 		_, err := conn.Write(resp.Bytes())

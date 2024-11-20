@@ -1,7 +1,7 @@
 package rafter
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +10,7 @@ import (
 	"github.com/dhyanio/discache/cache"
 	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/server"
+	"github.com/dhyanio/discache/transport"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
@@ -28,13 +29,6 @@ const (
 	nodeHTTPServer             = ":9080" // HTTP server default port for the node
 )
 
-// Command structure for key-value updates
-type Command struct {
-	Op    string // Operation type, e.g., "set"
-	Key   string // Key to set
-	Value string // Value to associate with the key
-}
-
 // raftFSM is a finite state machine that applies log entries to the key-value store.
 type raftFSM struct {
 	cache *cache.Cache
@@ -49,22 +43,27 @@ func NewRaftFSM(cache *cache.Cache) *raftFSM {
 
 // Apply applies a Raft log entry to the Cache.
 func (f *raftFSM) Apply(log *raft.Log) any {
-	// Decode the command from the Log entry
-	var cmd Command
-	if err := json.Unmarshal(log.Data, &cmd); err != nil {
-		fmt.Printf("Failed to unmarshal command: %v\n", err)
-		return nil
+	r := bytes.NewReader(log.Data)
+
+	cmd, err := transport.ParseCommand(r)
+	if err != nil {
+		if err == io.EOF {
+		}
+		return fmt.Errorf("parse command error: %s", err.Error())
 	}
 
-	// Apply the command to the Cache
-	if cmd.Op == "set" {
-	} else if cmd.Op == "get" {
+	switch v := cmd.(type) {
+	case *transport.CommandSet:
+		return f.cache.Put(v.Key, v.Value, time.Duration(v.TTL))
+	case *transport.CommandGet:
+		value, err := f.cache.Get(v.Key)
+		if err != nil {
+			return err
+		}
+		return value
+	default:
+		return fmt.Errorf("unknown operation")
 	}
-
-	// Print the current state of the kvStore
-	fmt.Printf("Current kvStore state: %v\n", log.Data)
-
-	return nil
 }
 
 // Snapshot returns a snapshot of the key-value store.

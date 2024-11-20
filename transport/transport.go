@@ -113,7 +113,6 @@ func (c *CommandSet) Bytes() []byte {
 	binary.Write(buf, binary.LittleEndian, int32(c.TTL))
 
 	return buf.Bytes()
-
 }
 
 // ParseCommand parses a command from the reader
@@ -126,8 +125,6 @@ func ParseCommand(r io.Reader) (any, error) {
 		return parseSetCommand(r), nil
 	case CMDGet:
 		return parseGetCommand(r), nil
-	case CMDJoin:
-		return &CommandJoin{}, nil
 	default:
 		return nil, fmt.Errorf("invalid commnad")
 
@@ -149,9 +146,8 @@ func (c *CommandGet) Bytes() []byte {
 	binary.Write(buf, binary.LittleEndian, c.Key)
 
 	return buf.Bytes()
-
 }
- 
+
 func parseSetCommand(r io.Reader) *CommandSet {
 	cmd := &CommandSet{}
 
@@ -181,7 +177,4 @@ func parseGetCommand(r io.Reader) *CommandGet {
 	binary.Read(r, binary.LittleEndian, &cmd.Key)
 
 	return cmd
-}
-
-type CommandJoin struct {
 }

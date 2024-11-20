@@ -11,6 +11,13 @@ import (
 	"github.com/hashicorp/raft"
 )
 
+// httpCommand represents a command to be applied to the Raft log for HTTP server
+type httpCommand struct {
+	Op    string // Operation type, e.g., "set"
+	Key   string // Key to set
+	Value string // Value to associate with the key
+}
+
 // startHTTPServer will start the HTTP server for the raft node
 func startHTTPServer(raftNode *raft.Raft, addressNodeHTTP, addressNode string) {
 	http.HandleFunc("/apply", func(w http.ResponseWriter, r *http.Request) {
@@ -34,8 +41,8 @@ func startHTTPServer(raftNode *raft.Raft, addressNodeHTTP, addressNode string) {
 			return
 		}
 
-		// Decode the command from the request body
-		var cmd Command
+		// Decode the httpCommand from the request body
+		var cmd httpCommand
 		if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 			http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
 			return
