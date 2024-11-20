@@ -152,7 +152,4 @@ This project requires a transport package to handle command structure and respon
 MIT License
 
 ## TODO
-- RAFT consensus
 - gRPC
-- Documentations and Improve code
-- Use more context

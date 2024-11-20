@@ -7,6 +7,7 @@ import (
 	"io"
 )
 
+// Command is a byte representing a command
 type Command byte
 
 const (
@@ -17,8 +18,10 @@ const (
 	CMDJoin
 )
 
+// Status is a byte representing the status of a command
 type Status byte
 
+// String returns the string representation of the status
 func (s Status) String() string {
 	switch s {
 	case StatusError:
@@ -42,10 +45,12 @@ const (
 	StatusExpired
 )
 
+// Response is a response to a command
 type ResponseSet struct {
 	Status Status
 }
 
+// Bytes returns the byte representation of the response
 func (r *ResponseSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, r.Status)
@@ -53,11 +58,13 @@ func (r *ResponseSet) Bytes() []byte {
 	return buf.Bytes()
 }
 
+// ResponseGet is a response to a get command
 type ResponseGet struct {
 	Status Status
 	Value  []byte
 }
 
+// Bytes returns the byte representation of the response
 func (r *ResponseGet) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, r.Status)
@@ -69,6 +76,7 @@ func (r *ResponseGet) Bytes() []byte {
 	return buf.Bytes()
 }
 
+// ParseSetResponse
 func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
 	resp := &ResponseSet{}
 
@@ -77,6 +85,7 @@ func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
 	return resp, err
 }
 
+// ParseGetResponse parses a get response from the reader
 func ParseGetResponse(r io.Reader) (*ResponseGet, error) {
 	resp := &ResponseGet{}
 
@@ -148,6 +157,7 @@ func (c *CommandGet) Bytes() []byte {
 	return buf.Bytes()
 }
 
+// parseSetCommand
 func parseSetCommand(r io.Reader) *CommandSet {
 	cmd := &CommandSet{}
 
@@ -168,6 +178,7 @@ func parseSetCommand(r io.Reader) *CommandSet {
 	return cmd
 }
 
+// parseGetCommand
 func parseGetCommand(r io.Reader) *CommandGet {
 	cmd := &CommandGet{}
 

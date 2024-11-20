@@ -47,22 +47,23 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 
 	cmd, err := transport.ParseCommand(r)
 	if err != nil {
-		if err == io.EOF {
-		}
 		return fmt.Errorf("parse command error: %s", err.Error())
 	}
 
 	switch v := cmd.(type) {
 	case *transport.CommandSet:
-		return f.cache.Put(v.Key, v.Value, time.Duration(v.TTL))
+		if err := f.cache.Put(v.Key, v.Value, time.Duration(v.TTL)); err != nil {
+			return fmt.Errorf("failed to set value: %s", err.Error())
+		}
+		return nil
 	case *transport.CommandGet:
 		value, err := f.cache.Get(v.Key)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get value: %s", err.Error())
 		}
 		return value
 	default:
-		return fmt.Errorf("unknown operation")
+		return fmt.Errorf("unknown operation: %T", cmd)
 	}
 }
 
