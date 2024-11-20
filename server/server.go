@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -70,6 +71,26 @@ func (s *Server) handleConn(conn net.Conn) {
 	s.Log.Info("connection closed: %s", conn.RemoteAddr())
 }
 
+// dialLeader dials the leader
+func (s *Server) dialLeader(cmd *transport.CommandSet) error {
+	leaderHost, leaderPort, err := net.SplitHostPort(string(s.RaftNode.Leader()))
+	if err != nil {
+		return fmt.Errorf("Failed to parse leader address: %v", err)
+	}
+	leaderHTTPAddr := fmt.Sprintf("%s%s", leaderHost, leaderPort)
+
+	conn, err := net.Dial("tcp", leaderHTTPAddr)
+	if err != nil {
+		return fmt.Errorf("failed to dial leader [%s]", leaderHTTPAddr)
+	}
+	s.Log.Info("connected to leader: %s", leaderHTTPAddr)
+
+	// create set comamnd
+	binary.Write(conn, binary.LittleEndian, cmd.Bytes())
+	s.handleConn(conn)
+	return nil
+}
+
 // handleCommand handles the incoming command
 func (s *Server) handleCommand(conn net.Conn, cmd any) {
 	switch v := cmd.(type) {
@@ -107,9 +128,19 @@ func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) erro
 
 // handleSetCommand handles the SET command
 func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) error {
-	s.Log.Info("SET %s to %s", cmd.Key, cmd.Value)
-
 	resp := transport.ResponseSet{}
+
+	// Redirect to the leader if this node is not the leader
+	if s.RaftNode.Leader() != raft.ServerAddress(s.ListenAddr) {
+		if err := s.dialLeader(cmd); err != nil {
+			s.Log.Error("failed to start server : %s", err.Error())
+		}
+		resp.Status = transport.StatusError
+		_, err := conn.Write(resp.Bytes())
+		return err
+	}
+
+	s.Log.Info("SET %s to %s", cmd.Key, cmd.Value)
 
 	future := s.RaftNode.Apply(cmd.Bytes(), 5*time.Second)
 	if future.Error() != nil {

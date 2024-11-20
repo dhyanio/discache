@@ -178,6 +178,6 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	}
 	server := server.NewServer(serverOpts)
 	if err := server.Start(); err != nil {
-		opts.Log.Fatal(err.Error())
+		opts.Log.Fatal("failed to start server : %s", err.Error())
 	}
 }
