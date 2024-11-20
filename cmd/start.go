@@ -2,15 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
 	"github.com/dhyanio/discache/logger"
 
-	rafter "github.com/dhyanio/discache/raft"
-	"github.com/dhyanio/discache/server"
+	"github.com/dhyanio/discache/rafter"
 	"github.com/spf13/cobra"
 )
 
@@ -62,8 +60,8 @@ var nodeCmd = cobra.Command{
 
 		log := logger.NewLogger(logger.INFO, logFile)
 
-		opts := server.ServerOpts{
-			ID:       nodeName,
+		opts := rafter.RaftServerOpts{
+			ID:         nodeName,
 			ListenAddr: nodeEndpoint,
 			IsLeader:   isLeader,
 			LeaderAddr: leaderName,
@@ -74,7 +72,7 @@ var nodeCmd = cobra.Command{
 }
 
 // startServer starts a server with the specified role, port, and leader port
-func startServer(opts server.ServerOpts) {
+func startServer(opts rafter.RaftServerOpts) {
 	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
 	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
 		fmt.Printf("Evicted: %s -> %s\n", key, value)
@@ -83,17 +81,8 @@ func startServer(opts server.ServerOpts) {
 }
 
 // raftServer using raft Server and raft's own Transport layer
-func raftSever(cc *cache.Cache, opts server.ServerOpts) {
+func raftSever(cc *cache.Cache, opts rafter.RaftServerOpts) {
 	raftFSM := rafter.NewRaftFSM(cc)
 	rafter.Rafting(raftFSM, opts)
-	select{}
-}
-
-// inhouseSever using inhouse Server and Transport layer
-func inhouseServer(cc *cache.Cache, opts server.ServerOpts) {
-	server := server.NewServer(opts, cc)
-	fmt.Println("IsLeader", opts.IsLeader)
-	if err := server.Start(); err != nil {
-		log.Fatal(err.Error())
-	}
+	select {}
 }

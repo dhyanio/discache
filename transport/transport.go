@@ -90,12 +90,14 @@ func ParseGetResponse(r io.Reader) (*ResponseGet, error) {
 	return resp, nil
 }
 
+// CommandSet is a command to get a set
 type CommandSet struct {
 	Key   []byte
 	Value []byte
 	TTL   int
 }
 
+// Bytes returns the byte representation of the set command
 func (c *CommandSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, CMDSet)
@@ -114,6 +116,7 @@ func (c *CommandSet) Bytes() []byte {
 
 }
 
+// ParseCommand parses a command from the reader
 func ParseCommand(r io.Reader) (any, error) {
 	var cmd Command
 	binary.Read(r, binary.LittleEndian, &cmd)
@@ -131,10 +134,12 @@ func ParseCommand(r io.Reader) (any, error) {
 	}
 }
 
+// CommandGet is a command to get a key
 type CommandGet struct {
 	Key []byte
 }
 
+// Bytes returns the byte representation of the get command
 func (c *CommandGet) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, CMDGet)
@@ -146,7 +151,7 @@ func (c *CommandGet) Bytes() []byte {
 	return buf.Bytes()
 
 }
-
+ 
 func parseSetCommand(r io.Reader) *CommandSet {
 	cmd := &CommandSet{}
 

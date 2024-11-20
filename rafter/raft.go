@@ -4,16 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/dhyanio/discache/cache"
+	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/server"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
+
+// RaftServerOpts represents the options for a Raft server
+type RaftServerOpts struct {
+	ID         string
+	ListenAddr string
+	IsLeader   bool
+	LeaderAddr string
+	Log        *logger.Logger
+}
 
 const (
 	raftClusterElectionTimeout = 5 * time.Second
@@ -27,20 +35,19 @@ type Command struct {
 	Value string // Value to associate with the key
 }
 
-// raftFSM with cache
+// raftFSM is a finite state machine that applies log entries to the key-value store.
 type raftFSM struct {
-	// cache *cache.Cache
-	kvStore map[string]string
+	cache *cache.Cache
 }
 
-// NewDemoFSM initializes the FSM with an empty kvStore.
+// NewRaftFSM creates a new Raft finite state machine.
 func NewRaftFSM(cache *cache.Cache) *raftFSM {
 	return &raftFSM{
-		// cache: cache,
-		kvStore: make(map[string]string),
+		cache: cache,
 	}
 }
 
+// Apply applies a Raft log entry to the Cache.
 func (f *raftFSM) Apply(log *raft.Log) any {
 	// Decode the command from the Log entry
 	var cmd Command
@@ -49,10 +56,9 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 		return nil
 	}
 
-	// Apply the command to the kvStore
+	// Apply the command to the Cache
 	if cmd.Op == "set" {
-		f.kvStore[cmd.Key] = cmd.Value
-		fmt.Printf("Applied command: set %s = %s\n", cmd.Key, cmd.Value)
+	} else if cmd.Op == "get" {
 	}
 
 	// Print the current state of the kvStore
@@ -61,24 +67,29 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 	return nil
 }
 
+// Snapshot returns a snapshot of the key-value store.
 func (f *raftFSM) Snapshot() (raft.FSMSnapshot, error) {
-	return &demoSnapshot{}, nil
+	return &snapshot{}, nil
 }
 
+// Restore restores the key-value store to a previous state.
 func (f *raftFSM) Restore(io.ReadCloser) error {
 	return nil
 }
 
-type demoSnapshot struct{}
+// snapshot is a structure that represents a snapshot of the key-value store.
+type snapshot struct{}
 
-func (s *demoSnapshot) Persist(sink raft.SnapshotSink) error {
+// Persist persists the snapshot to a sink.
+func (s *snapshot) Persist(sink raft.SnapshotSink) error {
 	return sink.Close()
 }
 
-func (s *demoSnapshot) Release() {}
+// Release releases the snapshot.
+func (s *snapshot) Release() {}
 
 // createRaftNodeWithCluster will create raft node and cluster
-func createRaftNodeWithCluster(opts server.ServerOpts, peers []raft.Server) (*raft.Raft, error) {
+func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(opts.ID)
 	config.ElectionTimeout = raftClusterElectionTimeout
@@ -124,8 +135,8 @@ func createRaftNodeWithCluster(opts server.ServerOpts, peers []raft.Server) (*ra
 	return raftNode, nil
 }
 
-// Rafting
-func Rafting(raftFSM *raftFSM, opts server.ServerOpts) {
+// Rafting will start the raft node
+func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	// Define the cluster configuration with all nodes
 	peers := []raft.Server{
 		{ID: raft.ServerID("node1"), Address: raft.ServerAddress("127.0.0.1:8080")},
@@ -148,52 +159,25 @@ func Rafting(raftFSM *raftFSM, opts server.ServerOpts) {
 		}
 	}()
 
-	go startHTTPServer(raftNode, nodeHTTPServer, opts.ListenAddr)
-}
+	// Start the HTTP server.
+	// This will be for the HTTP server that will be used to communicate with the Raft node.
+	// startHTTPServer(raftNode, nodeHTTPServer, opts.ListenAddr)
 
-// startHTTPServer will start the HTTP server for the raft node
-func startHTTPServer(raftNode *raft.Raft, addressNodeHTTP, addressNode string) {
-	http.HandleFunc("/apply", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
-			return
-		}
+	// Start the Raft node server
+	nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
+	if err != nil {
+		opts.Log.Error("Failed to parse node address: %v", err)
+		return
+	}
+	nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
 
-		fmt.Println("Leader: ", raftNode.Leader())
-		fmt.Println("Node: ", raft.ServerAddress(addressNode))
-
-		// Redirect to the leader if this node is not the leader
-		if raftNode.Leader() != raft.ServerAddress(addressNode) {
-			leaderHost, _, err := net.SplitHostPort(string(raftNode.Leader()))
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Failed to parse leader address: %v", err), http.StatusInternalServerError)
-				return
-			}
-			leaderHTTPAddr := fmt.Sprintf("%s%s", leaderHost, addressNodeHTTP)
-			http.Redirect(w, r, fmt.Sprintf("http://%s/apply", leaderHTTPAddr), http.StatusTemporaryRedirect)
-			return
-		}
-
-		// Decode the command from the request body
-		var cmd Command
-
-		if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid command: %v", err), http.StatusBadRequest)
-			return
-		}
-		commandData, _ := json.Marshal(cmd)
-
-		// Apply the command to the Raft log
-		future := raftNode.Apply(commandData, 5*time.Second)
-		if err := future.Error(); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to apply command: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Command applied successfully"))
-	})
-
-	log.Printf("Starting HTTP server on %s", addressNodeHTTP)
-	log.Fatal(http.ListenAndServe(addressNodeHTTP, nil))
+	serverOpts := server.ServerOpts{
+		ListenAddr: nodeServerAddr,
+		Log:        opts.Log,
+		RaftNode:   raftNode,
+	}
+	server := server.NewServer(serverOpts)
+	if err := server.Start(); err != nil {
+		opts.Log.Fatal(err.Error())
+	}
 }
