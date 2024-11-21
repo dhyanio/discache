@@ -45,7 +45,7 @@ const (
 	StatusExpired
 )
 
-// Response is a response to a command
+// ResponseSet is a response to a set command
 type ResponseSet struct {
 	Status Status
 }
@@ -53,8 +53,9 @@ type ResponseSet struct {
 // Bytes returns the byte representation of the response
 func (r *ResponseSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, r.Status)
-
+	if err := binary.Write(buf, binary.LittleEndian, r.Status); err != nil {
+		return nil
+	}
 	return buf.Bytes()
 }
 
@@ -67,39 +68,50 @@ type ResponseGet struct {
 // Bytes returns the byte representation of the response
 func (r *ResponseGet) Bytes() []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, r.Status)
+	if err := binary.Write(buf, binary.LittleEndian, r.Status); err != nil {
+		return nil
+	}
 
 	valueLen := int32(len(r.Value))
-	binary.Write(buf, binary.LittleEndian, valueLen)
-	binary.Write(buf, binary.LittleEndian, r.Value)
+	if err := binary.Write(buf, binary.LittleEndian, valueLen); err != nil {
+		return nil
+	}
+	if err := binary.Write(buf, binary.LittleEndian, r.Value); err != nil {
+		return nil
+	}
 
 	return buf.Bytes()
 }
 
-// ParseSetResponse
+// ParseSetResponse parses a set response from the reader
 func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
 	resp := &ResponseSet{}
-
-	err := binary.Read(r, binary.LittleEndian, &resp.Status)
-
-	return resp, err
+	if err := binary.Read(r, binary.LittleEndian, &resp.Status); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // ParseGetResponse parses a get response from the reader
 func ParseGetResponse(r io.Reader) (*ResponseGet, error) {
 	resp := &ResponseGet{}
-
-	binary.Read(r, binary.LittleEndian, &resp.Status)
+	if err := binary.Read(r, binary.LittleEndian, &resp.Status); err != nil {
+		return nil, err
+	}
 
 	var valueLen int32
-	binary.Read(r, binary.LittleEndian, &valueLen)
+	if err := binary.Read(r, binary.LittleEndian, &valueLen); err != nil {
+		return nil, err
+	}
 	resp.Value = make([]byte, valueLen)
-	binary.Read(r, binary.LittleEndian, &resp.Value)
+	if _, err := io.ReadFull(r, resp.Value); err != nil {
+		return nil, err
+	}
 
 	return resp, nil
 }
 
-// CommandSet is a command to get a set
+// CommandSet is a command to set a key-value pair with a TTL
 type CommandSet struct {
 	Key   []byte
 	Value []byte
@@ -109,17 +121,29 @@ type CommandSet struct {
 // Bytes returns the byte representation of the set command
 func (c *CommandSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, CMDSet)
+	if err := binary.Write(buf, binary.LittleEndian, CMDSet); err != nil {
+		return nil
+	}
 
 	keyLen := int32(len(c.Key))
-	binary.Write(buf, binary.LittleEndian, keyLen)
-	binary.Write(buf, binary.LittleEndian, c.Key)
+	if err := binary.Write(buf, binary.LittleEndian, keyLen); err != nil {
+		return nil
+	}
+	if err := binary.Write(buf, binary.LittleEndian, c.Key); err != nil {
+		return nil
+	}
 
 	valueLen := int32(len(c.Value))
-	binary.Write(buf, binary.LittleEndian, valueLen)
-	binary.Write(buf, binary.LittleEndian, c.Value)
+	if err := binary.Write(buf, binary.LittleEndian, valueLen); err != nil {
+		return nil
+	}
+	if err := binary.Write(buf, binary.LittleEndian, c.Value); err != nil {
+		return nil
+	}
 
-	binary.Write(buf, binary.LittleEndian, int32(c.TTL))
+	if err := binary.Write(buf, binary.LittleEndian, int32(c.TTL)); err != nil {
+		return nil
+	}
 
 	return buf.Bytes()
 }
@@ -127,16 +151,17 @@ func (c *CommandSet) Bytes() []byte {
 // ParseCommand parses a command from the reader
 func ParseCommand(r io.Reader) (any, error) {
 	var cmd Command
-	binary.Read(r, binary.LittleEndian, &cmd)
+	if err := binary.Read(r, binary.LittleEndian, &cmd); err != nil {
+		return nil, err
+	}
 
 	switch cmd {
 	case CMDSet:
-		return parseSetCommand(r), nil
+		return parseSetCommand(r)
 	case CMDGet:
-		return parseGetCommand(r), nil
+		return parseGetCommand(r)
 	default:
-		return nil, fmt.Errorf("invalid commnad")
-
+		return nil, fmt.Errorf("invalid command")
 	}
 }
 
@@ -148,44 +173,64 @@ type CommandGet struct {
 // Bytes returns the byte representation of the get command
 func (c *CommandGet) Bytes() []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, CMDGet)
+	if err := binary.Write(buf, binary.LittleEndian, CMDGet); err != nil {
+		return nil
+	}
 
 	keyLen := int32(len(c.Key))
-	binary.Write(buf, binary.LittleEndian, keyLen)
-	binary.Write(buf, binary.LittleEndian, c.Key)
+	if err := binary.Write(buf, binary.LittleEndian, keyLen); err != nil {
+		return nil
+	}
+	if err := binary.Write(buf, binary.LittleEndian, c.Key); err != nil {
+		return nil
+	}
 
 	return buf.Bytes()
 }
 
-// parseSetCommand
-func parseSetCommand(r io.Reader) *CommandSet {
+// parseSetCommand parses a set command from the reader
+func parseSetCommand(r io.Reader) (*CommandSet, error) {
 	cmd := &CommandSet{}
 
 	var keyLen int32
-	binary.Read(r, binary.LittleEndian, &keyLen)
+	if err := binary.Read(r, binary.LittleEndian, &keyLen); err != nil {
+		return nil, err
+	}
 	cmd.Key = make([]byte, keyLen)
-	binary.Read(r, binary.LittleEndian, &cmd.Key)
+	if _, err := io.ReadFull(r, cmd.Key); err != nil {
+		return nil, err
+	}
 
 	var valueLen int32
-	binary.Read(r, binary.LittleEndian, &valueLen)
+	if err := binary.Read(r, binary.LittleEndian, &valueLen); err != nil {
+		return nil, err
+	}
 	cmd.Value = make([]byte, valueLen)
-	binary.Read(r, binary.LittleEndian, &cmd.Value)
+	if _, err := io.ReadFull(r, cmd.Value); err != nil {
+		return nil, err
+	}
 
 	var ttl int32
-	binary.Read(r, binary.LittleEndian, &ttl)
+	if err := binary.Read(r, binary.LittleEndian, &ttl); err != nil {
+		return nil, err
+	}
 	cmd.TTL = int(ttl)
 
-	return cmd
+	return cmd, nil
 }
 
-// parseGetCommand
-func parseGetCommand(r io.Reader) *CommandGet {
+// parseGetCommand parses a get command from the reader
+func parseGetCommand(r io.Reader) (*CommandGet, error) {
 	cmd := &CommandGet{}
 
 	var keyLen int32
-	binary.Read(r, binary.LittleEndian, &keyLen)
+	if err := binary.Read(r, binary.LittleEndian, &keyLen); err != nil {
+		return nil, err
+	}
 	cmd.Key = make([]byte, keyLen)
-	binary.Read(r, binary.LittleEndian, &cmd.Key)
+	if _, err := io.ReadFull(r, cmd.Key); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }

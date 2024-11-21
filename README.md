@@ -96,11 +96,11 @@ To create a new client instance, use New with the server endpoint and optional c
 import "github.com/dhyanio/discache/client"
 
 func main() {
-    endpoint := "localhost:8080"
+    endpoint := "localhost:9080" // port 9080 is default for discache client server
     opts := client.Options{}
-    cacheClient, err := client.New(endpoint, opts)
+    client, err := client.New(endpoint, opts)
     if err != nil {
-        log.Fatalf("Failed to connect to cache server: %v", err)
+        log.Fatalf("Failed to connect to discache server: %v", err)
     }
     defer cacheClient.Close()
 }
@@ -111,11 +111,11 @@ func main() {
 `Put` a key-value pair into the cache with a specified TTL (in seconds):
 
 ```go
-key := []byte("exampleKey")
-value := []byte("exampleValue")
+key := []byte("foo")
+value := []byte("bar")
 ttl := 60 // TTL in seconds
 
-err := cacheClient.Put(context.Background(), key, value, ttl)
+err := client.Put(context.Background(), key, value, ttl)
 if err != nil {
     log.Printf("Failed to put key: %v", err)
 }
@@ -124,7 +124,7 @@ if err != nil {
 `Get` a value by key:
 
 ```go
-value, err := cacheClient.Get(context.Background(), key)
+value, err := client.Get(context.Background(), key)
 if err != nil {
     log.Printf("Failed to get key: %v", err)
 } else {

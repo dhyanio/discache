@@ -82,7 +82,8 @@ type snapshot struct{}
 
 // Persist persists the snapshot to a sink.
 func (s *snapshot) Persist(sink raft.SnapshotSink) error {
-	return sink.Close()
+	defer sink.Close()
+	return nil
 }
 
 // Release releases the snapshot.
@@ -99,14 +100,16 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log store: %v", err)
 	}
+	defer logStore.Close()
 
 	// Create stableStore
 	stableStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-stable-%s.bolt", opts.ID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stable store: %v", err)
 	}
+	defer stableStore.Close()
 
-	// Create discardSnapshortStore
+	// Create discardSnapshotStore
 	snapshotStore := raft.NewDiscardSnapshotStore()
 
 	// Convert the address to Raft's format
@@ -129,7 +132,9 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.
 
 	// Bootstrap raft cluster on leader only
 	if opts.IsLeader {
-		raftNode.BootstrapCluster(raft.Configuration{Servers: peers})
+		if err := raftNode.BootstrapCluster(raft.Configuration{Servers: peers}); err != nil {
+			return nil, fmt.Errorf("failed to bootstrap cluster: %v", err)
+		}
 	}
 
 	return raftNode, nil
@@ -158,10 +163,6 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 			opts.Log.Info("Current leader: %s\n", leader)
 		}
 	}()
-
-	// Start the HTTP server.
-	// This will be for the HTTP server that will be used to communicate with the Raft node.
-	// startHTTPServer(raftNode, nodeHTTPServer, opts.ListenAddr)
 
 	// Start the Raft node server
 	nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
