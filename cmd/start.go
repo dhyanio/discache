@@ -83,7 +83,12 @@ var nodeCmd = cobra.Command{
 // startServer starts a server with the specified role, port, and leader port
 func startServer(opts rafter.RaftServerOpts) {
 	// Initialize cache with capacity 5, TTL 5 seconds, and custom eviction callback
-	cc := cache.NewCache(cacheCapabity, cacheTTL, evictFunc)
+	cacheOpts := cache.CacheOpts{
+		Capacity: cacheCapabity,
+		TTL:      cacheTTL,
+		OnEvict:  evictFunc,
+	}
+	cc := cache.NewCache(cacheOpts)
 	raftSever(cc, opts)
 }
 

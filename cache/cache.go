@@ -7,26 +7,29 @@ import (
 	"github.com/dhyanio/discache/util"
 )
 
+// CacheOpts contains the configuration options for a cache
+type CacheOpts struct {
+	Capacity int
+	TTL      time.Duration
+	OnEvict  func(key string, value []byte)
+}
+
 // Cache is an in-memory key-value store with a fixed capacity and TTL
 type Cache struct {
-	capacity                int
-	ttl                     time.Duration
+	CacheOpts
 	items                   map[string][]byte
 	order                   []string // Slice to maintain the LRU order
 	mu                      sync.RWMutex
 	hits, misses, evictions int
-	onEvict                 func(key string, value []byte)
 	timestamps              map[string]time.Time
 }
 
 // NewCache creates a new cache with the specified capacity, TTL, and eviction callback
-func NewCache(capacity int, ttl time.Duration, onEvict func(key string, value []byte)) *Cache {
+func NewCache(opts CacheOpts) *Cache {
 	return &Cache{
-		capacity:   capacity,
-		ttl:        ttl,
+		CacheOpts:  opts,
 		items:      make(map[string][]byte),
 		order:      []string{},
-		onEvict:    onEvict,
 		timestamps: make(map[string]time.Time),
 	}
 }
@@ -39,8 +42,12 @@ func (c *Cache) Get(key []byte) ([]byte, error) {
 	strKey := string(key)
 
 	if value, found := c.items[strKey]; found {
-		if c.ttl > 0 && time.Since(c.timestamps[string(key)]) > c.ttl {
+		if c.CacheOpts.TTL > 0 && time.Since(c.timestamps[strKey]) > c.CacheOpts.TTL {
+			c.mu.RUnlock()
+			c.mu.Lock()
 			c.remove(strKey) // Expire the item if TTL has elapsed
+			c.mu.Unlock()
+			c.mu.RLock()
 			c.misses++
 			return nil, &util.ExpiredKeyError{Key: strKey}
 		}
@@ -53,7 +60,7 @@ func (c *Cache) Get(key []byte) ([]byte, error) {
 }
 
 // Put inserts an item into the cache and updates its usage
-func (c *Cache) Put(key, value []byte, ttl time.Duration) error {
+func (c *Cache) Put(key, value []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -67,7 +74,7 @@ func (c *Cache) Put(key, value []byte, ttl time.Duration) error {
 	}
 
 	// Evict the least recently used item if capacity is reached
-	if len(c.items) >= c.capacity {
+	if len(c.items) >= c.CacheOpts.Capacity {
 		c.evict()
 	}
 
@@ -84,7 +91,7 @@ func (c *Cache) Has(key []byte) bool {
 
 	strKey := string(key)
 	if _, found := c.items[strKey]; found {
-		if c.ttl > 0 && time.Since(c.timestamps[strKey]) > c.ttl {
+		if c.CacheOpts.TTL > 0 && time.Since(c.timestamps[strKey]) > c.CacheOpts.TTL {
 			return false
 		}
 		return true
@@ -111,11 +118,11 @@ func (c *Cache) evict() {
 
 // remove deletes an item from the cache
 func (c *Cache) remove(key string) {
-	if _, found := c.items[key]; found {
+	if value, found := c.items[key]; found {
 		delete(c.items, key)
 		delete(c.timestamps, key)
-		if c.onEvict != nil {
-			c.onEvict(key, c.items[key])
+		if c.CacheOpts.OnEvict != nil {
+			c.CacheOpts.OnEvict(key, value)
 		}
 		// Remove the key from the order slice
 		for i, k := range c.order {
