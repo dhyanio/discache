@@ -71,38 +71,6 @@ func (s *Server) handleConn(conn net.Conn) {
 	s.Log.Info("connection closed: %s", conn.RemoteAddr())
 }
 
-// dialLeader dials the leader
-func (s *Server) dialLeader(cmd *transport.CommandSet) error {
-	leaderAddr, err := s.getLeaderAddr()
-	if err != nil {
-		return err
-	}
-
-	conn, err := net.Dial("tcp", leaderAddr)
-	if err != nil {
-		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
-	}
-	defer conn.Close()
-
-	s.Log.Info("connected to leader: %s", leaderAddr)
-
-	if err := binary.Write(conn, binary.LittleEndian, cmd.Bytes()); err != nil {
-		return fmt.Errorf("failed to write command to leader: %w", err)
-	}
-
-	s.handleConn(conn)
-	return nil
-}
-
-// getLeaderAddr returns the leader address
-func (s *Server) getLeaderAddr() (string, error) {
-	leaderHost, leaderPort, err := net.SplitHostPort(string(s.RaftNode.Leader()))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse leader address: %w", err)
-	}
-	return fmt.Sprintf("%s:%s", leaderHost, leaderPort), nil
-}
-
 // handleCommand handles the incoming command
 func (s *Server) handleCommand(conn net.Conn, cmd any) {
 	switch v := cmd.(type) {
@@ -174,4 +142,35 @@ func (s *Server) writeResponse(conn net.Conn, data []byte) {
 	if _, err := conn.Write(data); err != nil {
 		s.Log.Error("failed to write response: %s", err.Error())
 	}
+}
+
+// dialLeader dials the leader
+func (s *Server) dialLeader(cmd *transport.CommandSet) error {
+	leaderAddr, err := s.getLeaderAddr()
+	if err != nil {
+		return err
+	}
+
+	conn, err := net.Dial("tcp", leaderAddr)
+	if err != nil {
+		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
+	}
+
+	s.Log.Info("connected to leader: %s", leaderAddr)
+
+	if err := binary.Write(conn, binary.LittleEndian, cmd.Bytes()); err != nil {
+		return fmt.Errorf("failed to write command to leader: %w", err)
+	}
+
+	s.handleConn(conn)
+	return nil
+}
+
+// getLeaderAddr returns the leader address
+func (s *Server) getLeaderAddr() (string, error) {
+	leaderHost, leaderPort, err := net.SplitHostPort(string(s.RaftNode.Leader()))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse leader address: %w", err)
+	}
+	return fmt.Sprintf("%s:%s", leaderHost, leaderPort), nil
 }
