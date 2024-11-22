@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/dhyanio/discache/client"
-	"github.com/dhyanio/discache/logger"
+	"github.com/dhyanio/gogger"
 )
 
 func main() {
@@ -18,16 +18,18 @@ func main() {
 	}
 	defer logFile.Close()
 
-	log := logger.NewLogger(logger.INFO, logFile)
+	log, err := gogger.NewLogger("discache.log", gogger.INFO)
+	if err != nil {
+	}
 
 	SendStuff(log)
 }
 
 // SendStuff sends key-value pairs to the server
-func SendStuff(log *logger.Logger) {
+func SendStuff(log *gogger.Logger) {
 	client, err := client.New(":3000", client.Options{Log: log})
 	if err != nil {
-		log.Fatal("Failed to create client: %v", err)
+		log.Fatal().Msgf("Failed to create client: %v", err)
 	}
 	defer client.Close()
 
@@ -37,13 +39,13 @@ func SendStuff(log *logger.Logger) {
 
 		err = client.Put(context.Background(), key, value, 0)
 		if err != nil {
-			log.Fatal("Failed to put key-value pair: %v", err)
+			log.Fatal().Msgf("Failed to put key-value pair: %v", err)
 		}
 
 		fmt.Println("GET", string(key))
 		resp, err := client.Get(context.Background(), key)
 		if err != nil {
-			log.Fatal("Failed to get value: %v", err)
+			log.Fatal().Msgf("Failed to get value: %v", err)
 		}
 		fmt.Println(string(resp))
 	}
