@@ -52,7 +52,7 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 
 	switch v := cmd.(type) {
 	case *transport.CommandSet:
-		if err := f.cache.Put(v.Key, v.Value, time.Duration(v.TTL)); err != nil {
+		if err := f.cache.Put(v.Key, v.Value); err != nil {
 			return fmt.Errorf("failed to set value: %s", err.Error())
 		}
 		return nil
