@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/dhyanio/discache/cache"
-	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/server"
 	"github.com/dhyanio/discache/transport"
+	"github.com/dhyanio/gogger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
@@ -21,7 +21,7 @@ type RaftServerOpts struct {
 	ListenAddr string
 	IsLeader   bool
 	LeaderAddr string
-	Log        *logger.Logger
+	Log        *gogger.Logger
 }
 
 const (
@@ -152,7 +152,7 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	// Create the Raft node
 	raftNode, err := createRaftNodeWithCluster(opts, peers)
 	if err != nil {
-		opts.Log.Fatal("Error starting node %s: %v", opts.ID, err)
+		opts.Log.Fatal().Msgf("Error starting node %s: %v", opts.ID, err)
 	}
 
 	// Display the current leader periodically
@@ -160,14 +160,14 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 		for {
 			time.Sleep(20 * time.Second)
 			leader := raftNode.Leader()
-			opts.Log.Info("Current leader: %s\n", leader)
+			opts.Log.Info().Msgf("Current leader: %s\n", leader)
 		}
 	}()
 
 	// Start the Raft node server
 	nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
 	if err != nil {
-		opts.Log.Error("Failed to parse node address: %v", err)
+		opts.Log.Error().Msgf("Failed to parse node address: %v", err)
 		return
 	}
 	nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
@@ -179,6 +179,6 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	}
 	server := server.NewServer(serverOpts)
 	if err := server.Start(); err != nil {
-		opts.Log.Fatal("failed to start server : %s", err.Error())
+		opts.Log.Fatal().Msgf("failed to start server : %s", err.Error())
 	}
 }

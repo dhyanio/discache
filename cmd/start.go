@@ -6,11 +6,20 @@ import (
 	"time"
 
 	"github.com/dhyanio/discache/cache"
-	"github.com/dhyanio/discache/logger"
-
 	"github.com/dhyanio/discache/rafter"
+	"github.com/dhyanio/gogger"
 	"github.com/spf13/cobra"
 )
+
+const (
+	loggerFilePath = "discache.log"
+	cacheCapabity  = 10
+	cacheTTL       = 5 * time.Second
+)
+
+var evictFunc = func(key string, value []byte) {
+	fmt.Printf("Evicted: %s -> %s\n", key, value)
+}
 
 // startCmd creates the start command
 func startCmd() *cobra.Command {
@@ -54,11 +63,11 @@ var nodeCmd = cobra.Command{
 			}
 		}
 
-		// Initialize Logger
-		logFile, _ := os.Create("discache.log")
-		defer logFile.Close()
-
-		log := logger.NewLogger(logger.INFO, logFile)
+		log, err := gogger.NewLogger(loggerFilePath, gogger.INFO)
+		if err != nil {
+			fmt.Printf("Error: Unknown argument '%s'. Use 'leader [leaderName]' after the name to specify a leader.\n", args[1])
+			os.Exit(1)
+		}
 
 		opts := rafter.RaftServerOpts{
 			ID:         nodeName,
@@ -73,10 +82,8 @@ var nodeCmd = cobra.Command{
 
 // startServer starts a server with the specified role, port, and leader port
 func startServer(opts rafter.RaftServerOpts) {
-	// Initialize cache with capacity 3, TTL 5 seconds, and custom eviction callback
-	cc := cache.NewCache(5, 5*time.Second, func(key string, value []byte) {
-		fmt.Printf("Evicted: %s -> %s\n", key, value)
-	})
+	// Initialize cache with capacity 5, TTL 5 seconds, and custom eviction callback
+	cc := cache.NewCache(cacheCapabity, cacheTTL, evictFunc)
 	raftSever(cc, opts)
 }
 

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/dhyanio/discache/logger"
 	"github.com/dhyanio/discache/transport"
+	"github.com/dhyanio/gogger"
 )
 
 // Options is the configuration for the client
 type Options struct {
-	Log *logger.Logger
+	Log *gogger.Logger
 }
 
 // Client is the client to interact with the server
@@ -31,7 +31,7 @@ func NewFromConn(conn net.Conn) *Client {
 func New(endpoint string, opts Options) (*Client, error) {
 	conn, err := net.Dial("tcp", endpoint)
 	if err != nil {
-		opts.Log.Fatal("failed to create discache client: %s", err.Error())
+		opts.Log.Fatal().Msgf("failed to create discache client: %s", err.Error())
 	}
 	return &Client{
 		Options: opts,
@@ -56,12 +56,12 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	}
 
 	if resp.Status == transport.StatusExpired {
-		c.Log.Warn("key [%s] expired", key)
+		c.Log.Warn().Msgf("key [%s] expired", key)
 		return nil, nil
 	}
 
 	if resp.Status == transport.StatusKeyNotFound {
-		c.Log.Warn("key [%s] not present", key)
+		c.Log.Warn().Msgf("key [%s] not present", key)
 		return nil, nil
 	}
 
