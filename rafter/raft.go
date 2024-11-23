@@ -100,14 +100,12 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log store: %v", err)
 	}
-	defer logStore.Close()
 
 	// Create stableStore
 	stableStore, err := raftboltdb.NewBoltStore(fmt.Sprintf("raft-stable-%s.bolt", opts.ID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stable store: %v", err)
 	}
-	defer stableStore.Close()
 
 	// Create discardSnapshotStore
 	snapshotStore := raft.NewDiscardSnapshotStore()
@@ -132,8 +130,12 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.
 
 	// Bootstrap raft cluster on leader only
 	if opts.IsLeader {
-		if err := raftNode.BootstrapCluster(raft.Configuration{Servers: peers}); err != nil {
-			return nil, fmt.Errorf("failed to bootstrap cluster: %v", err)
+		cfg := raft.Configuration{
+			Servers: peers,
+		}
+		f := raftNode.BootstrapCluster(cfg)
+		if err := f.Error(); err != nil {
+			return nil, fmt.Errorf("raft.Raft.BootstrapCluster: %v", err)
 		}
 	}
 
