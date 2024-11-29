@@ -1,4 +1,4 @@
-# Discache : Distributed LRU Cache
+# Discache: Distributed LRU Cache
 [![tests](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
 [![linter](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dhyanio/discache)](https://goreportcard.com/report/github.com/dhyanio/discache)
@@ -8,7 +8,7 @@
 
 <img src="./doc/discache.png" alt="Discache" width="600"/>
 
-Discache, is a powerfull, but simple LRU cache in golang. Using TCP and binary as a transporter which makes it very performant.
+Discache is a powerful, but simple LRU cache in Golang. Using TCP and binary as a transporter makes it very performant.
 
 ## CLI
 A CLI tool has commands
@@ -36,7 +36,7 @@ Builds the Go binary and places it in the bin/ directory.
 ```bash
 make run
 ```
-Runs the binary after building it.
+It runs the binary after building it.
 
 - Run the Tests
 
@@ -102,7 +102,7 @@ To create a new client instance, use New with the server endpoint and optional c
 import "github.com/dhyanio/discache/client"
 
 func main() {
-    endpoint := "localhost:9080" // port 9080 is default for discache client server
+    endpoint := "localhost:9080" // port 9080 is the default for discache client-server
     opts := client.Options{}
     client, err := client.New(endpoint, opts)
     if err != nil {
