@@ -1,6 +1,12 @@
 # Discache : Distributed LRU Cache
+[![tests](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
+[![linter](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dhyanio/discache)](https://goreportcard.com/report/github.com/dhyanio/discache)
+![Go Version](https://img.shields.io/badge/go%20version-%3E=1.23-61CFDD.svg?style=flat-square)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-<img src="./doc/discache.png" alt="Discache" width="700"/>
+
+<img src="./doc/discache.png" alt="Discache" width="600"/>
 
 Discache, is a powerfull, but simple LRU cache in golang. Using TCP and binary as a transporter which makes it very performant.
 
@@ -74,13 +80,13 @@ make leader NAME=node1 LISTEN_ADDR=:3000 Leader_NAME=node1
 ## Client
 A Go client for connecting to an LRU cache server over TCP. This client allows users to perform Get and Put operations on the cache, handling network communication and TTL (time-to-live) for cache entries.
 
-### Features
+## 🔧 Features
 - Get: Retrieve a value by its key.
 - Put: Store a value with a specified TTL.
 - Connection Management: Establishes and closes TCP connections.
 - Error Handling: Returns detailed error messages for failed operations.
 
-### Setup and Installation
+## 🚀 Installation
 - Prerequisites: Make sure you have Go installed.
 - Clone the repository and navigate to the project directory.
 - Build the Client:
@@ -88,7 +94,7 @@ A Go client for connecting to an LRU cache server over TCP. This client allows u
 ```bash
 go build -o lru_client client.go
 ```
-### Usage
+## 📚 Usage
 #### Initialize the Client
 To create a new client instance, use New with the server endpoint and optional configurations:
 
@@ -138,18 +144,25 @@ Always close the connection when you're done:
 defer cacheClient.Close()
 ```
 
-### Error Handling
+## ❗Error Handling
 Errors returned by `Get` and `Put` methods include:
 
 - `Key Not Found`: if the key doesn’t exist.
 - `Connection Errors`: issues in TCP communication with the server.
 - `Non-OK Status`: unexpected server responses.
 
-### Dependencies
-This project requires a transport package to handle command structure and response parsing.
+## 🤝 Contributing
+Contributions are welcome! Please open an issue or submit a pull request on GitHub.
+1. Fork the repository.
+2. Create your feature branch (git checkout -b feature/new-feature).
+3. Commit your changes (git commit -am 'Add new feature').
+4. Push to the branch (git push origin feature/new-feature).
+5. Create a new Pull Request.
 
-### License
-MIT License
+## 📜 License
 
-## TODO
-- gRPC
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## ❤️ Acknowledgements
+
+Thanks to the Go community for their support and contributions.
