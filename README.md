@@ -1,12 +1,10 @@
-# Discache: Distributed LRU Cache
+<img src="./doc/discache.png" alt="Discache" width="600"/>
+
 [![tests](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
 [![linter](https://github.com/dhyanio/discache/actions/workflows/go.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/go.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dhyanio/discache)](https://goreportcard.com/report/github.com/dhyanio/discache)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.23-61CFDD.svg?style=flat-square)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
-
-
-<img src="./doc/discache.png" alt="Discache" width="600"/>
 
 Discache is a powerful, but simple LRU cache in Golang. Using TCP and binary as a transporter makes it very performant.
 
