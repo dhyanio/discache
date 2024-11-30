@@ -6,7 +6,11 @@
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.23-61CFDD.svg?style=flat-square)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-Discache is a powerful, but simple LRU cache in Golang. Using TCP and binary as a transporter makes it very performant.
+Discache is a powerful, but simple memory cache in Golang. Using TCP and binary as a transporter makes it very performant.
+
+# Table of Contents
+- [Cli](#cli)
+- [Client](#client)
 
 ## CLI
 A CLI tool has commands
@@ -21,7 +25,7 @@ A CLI tool has commands
 
 These can be passed as arguments when running specific commands.
 
-### Usage
+### 📚 Usage
 - Build the Project
 
 ```bash
@@ -78,13 +82,13 @@ make leader NAME=node1 LISTEN_ADDR=:3000 Leader_NAME=node1
 ## Client
 A Go client for connecting to an LRU cache server over TCP. This client allows users to perform Get and Put operations on the cache, handling network communication and TTL (time-to-live) for cache entries.
 
-## 🔧 Features
+### 🔧 Features
 - Get: Retrieve a value by its key.
 - Put: Store a value with a specified TTL.
 - Connection Management: Establishes and closes TCP connections.
 - Error Handling: Returns detailed error messages for failed operations.
 
-## 🚀 Installation
+### 🚀 Installation
 - Prerequisites: Make sure you have Go installed.
 - Clone the repository and navigate to the project directory.
 - Build the Client:
@@ -92,7 +96,7 @@ A Go client for connecting to an LRU cache server over TCP. This client allows u
 ```bash
 go build -o lru_client client.go
 ```
-## 📚 Usage
+### 📚 Usage
 #### Initialize the Client
 To create a new client instance, use New with the server endpoint and optional configurations:
 
