@@ -1,7 +1,7 @@
 <img src="./doc/discache.png" alt="Discache" width="600"/>
 
-[![tests](https://github.com/dhyanio/discache/actions/workflows/test.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/test.yml)
-[![linter](https://github.com/dhyanio/discache/actions/workflows/linter.yml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/linter.yml)
+[![tests](https://github.com/dhyanio/discache/actions/workflows/test.yaml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/test.yaml)
+[![linter](https://github.com/dhyanio/discache/actions/workflows/linter.yaml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/linter.yaml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dhyanio/discache)](https://goreportcard.com/report/github.com/dhyanio/discache)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.23-61CFDD.svg?style=flat-square)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
