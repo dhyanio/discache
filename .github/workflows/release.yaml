@@ -20,13 +20,13 @@ jobs:
       - name: Test
         run: go build -v && go test ./...
       - name: Build for linux/amd64
-        run: go build -o discache-all-linux-amd64
+        run: go build -o discache-linux-amd64
       - name: Build for linux/arm64
-        run: GOOS=linux GOARCH=arm64 go build -o discache-all-linux-arm64
+        run: GOOS=linux GOARCH=arm64 go build -o discache-linux-arm64
       - name: Build for mac
-        run: GOOS=darwin go build -o discache-all-darwin-amd64
+        run: GOOS=darwin go build -o discache-darwin-amd64
       - name: Build for mac Apple Silicon
-        run: GOOS=darwin GOARCH=arm64 go build -o discache-all-darwin-arm64
+        run: GOOS=darwin GOARCH=arm64 go build -o discache-darwin-arm64
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
