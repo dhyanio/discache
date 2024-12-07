@@ -9,14 +9,36 @@
 Discache is a powerful, but simple memory cache in Golang. Using TCP and binary as a transporter makes it very performant.
 
 # Table of Contents
+- [Installation](#installation)
 - [Cli](#cli)
 - [Client](#client)
 
+### Installation
+
+#### Discache
+
+**From releases**
+This installs binary.
+
+* Linux
+```
+curl -LO "https://github.com/dhyanio/discache/releases/download/$(curl -s https://api.github.com/repos/dhyanio/discache/releases/latest | grep tag_name | cut -d '"' -f 4)/discache-linux-amd64"
+chmod +x discache-linux-amd64
+sudo mv discache-linux-amd64 /usr/local/bin/discache
+```
+* MacOS
+```
+curl -LO "https://github.com/dhyanio/discache/releases/download/$(curl -s https://api.github.com/repos/dhyanio/discache/releases/latest | grep tag_name | cut -d '"' -f 4)/discache-darwin-amd64"
+chmod +x discache-darwin-amd64
+sudo mv discache-darwin-amd64 /usr/local/bin/discache
+```
+
+**From source**
+1.  Run `git clone <discache repo> && cd discache/`
+2.  Run `make build`
+
 ## CLI
 A CLI tool has commands
-
-### Requirements
-- Go (version 1.17 or later)
 
 ### Makefile Targets
 #### Variables
@@ -26,13 +48,6 @@ A CLI tool has commands
 These can be passed as arguments when running specific commands.
 
 ### 📚 Usage
-- Build the Project
-
-```bash
-make build
-```
-Builds the Go binary and places it in the bin/ directory.
-
 - Run the Project
 
 ```bash
