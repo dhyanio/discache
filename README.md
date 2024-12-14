@@ -1,9 +1,11 @@
 <img src="./doc/discache.png" alt="Discache" width="600"/>
 
+[![release](https://img.shields.io/github/release/dhyanio/discache.svg)](https://github.com/dhyanio/discache/releases)
 [![tests](https://github.com/dhyanio/discache/actions/workflows/test.yaml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/test.yaml)
 [![linter](https://github.com/dhyanio/discache/actions/workflows/linter.yaml/badge.svg)](https://github.com/dhyanio/discache/actions/workflows/linter.yaml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dhyanio/discache)](https://goreportcard.com/report/github.com/dhyanio/discache)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.23-61CFDD.svg?style=flat-square)
+[![release](https://godoc.org/github.com/dhyanio/discache?status.svg)](https://pkg.go.dev/github.com/dhyanio/discache?tab=doc)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 Discache is a powerful, but simple memory cache in Golang. Using TCP and binary as a transporter makes it very performant.
