@@ -21,6 +21,8 @@ github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46t
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dhyanio/go-lru v0.0.0-20250621070046-4ca7828c936c h1:NR+wzES9WXTGLE/HT56nen4WC5EyiKWEveoEB7xgOMo=
+github.com/dhyanio/go-lru v0.0.0-20250621070046-4ca7828c936c/go.mod h1:pOAImMIYAwO8DWXZjEDZdGubVDcglkvEWdXu8XZYvPY=
 github.com/dhyanio/gogger v0.0.0-20241122071817-8a31501d4735 h1:hgmjhVWTFkjOdSPxXF0MPIRQt/R3QRBcXpfjEqXmhiM=
 github.com/dhyanio/gogger v0.0.0-20241122071817-8a31501d4735/go.mod h1:jAgVfsQ2v7ayK/+FRlQB+tvTsLo3Q7YBUzvy4g/PAFM=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=

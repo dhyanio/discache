@@ -3,6 +3,7 @@ module github.com/dhyanio/discache
 go 1.23.1
 
 require (
+	github.com/dhyanio/go-lru v0.0.0-20250621070046-4ca7828c936c
 	github.com/dhyanio/gogger v0.0.0-20241122071817-8a31501d4735
 	github.com/hashicorp/raft v1.7.1
 	github.com/hashicorp/raft-boltdb v0.0.0-20241118193808-d88003288591
