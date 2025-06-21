@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/dhyanio/discache/cache"
 	"github.com/dhyanio/discache/server"
 	"github.com/dhyanio/discache/transport"
+	cache "github.com/dhyanio/go-lru"
 	"github.com/dhyanio/gogger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"

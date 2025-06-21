@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/dhyanio/discache/cache"
 	"github.com/dhyanio/discache/rafter"
 	"github.com/dhyanio/gogger"
 	"github.com/spf13/cobra"
+	"github.com/dhyanio/go-lru"
 )
 
 const (
