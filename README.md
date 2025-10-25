@@ -44,10 +44,9 @@ A CLI tool has commands
 
 ### Makefile Targets
 #### Variables
-- `LISTEN_ADDR` - Address for the server to listen on (default: `:4000`).
-- `LEADER_ADDR` - Address of the leader node (default: `:3000`).
+- `LISTEN_ADDR` - Address for the server to listen on (default: `:8080`).
 
-These can be passed as arguments when running specific commands.
+This can be passed as arguments when running specific commands.
 
 ### 📚 Usage
 - Run the Project
@@ -88,12 +87,12 @@ Removes the bin/ directory and all generated files.
 ### Example Usage
 To start a leader
 ```bash
-make run NAME:node1 LISTEN_ADDR=:3000
+make run NAME=node1 LISTEN_ADDR=127.0.0.1:8080
 ```
 
-To start a follower node with a custom `LISTEN_ADDR` and `LEADER_ADDR`
+To start a follower node
 ```bash
-make leader NAME=node1 LISTEN_ADDR=:3000 Leader_NAME=node1
+make follower NAME=node2 LISTEN_ADDR=127.0.0.1:8081 Leader_NAME=node1
 ```
 
 ## Client

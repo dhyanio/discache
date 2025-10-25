@@ -2,12 +2,16 @@ package server
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/dhyanio/discache/transport"
+	"github.com/dhyanio/discache/util"
+	cache "github.com/dhyanio/go-lru"
 	"github.com/dhyanio/gogger"
 	"github.com/hashicorp/raft"
 )
@@ -16,7 +20,9 @@ import (
 type ServerOpts struct {
 	ListenAddr string
 	RaftNode   *raft.Raft
+	Cache      *cache.Cache
 	Log        *gogger.Logger
+	PeerMap    map[string]string
 }
 
 // Server represents a server
@@ -59,12 +65,14 @@ func (s *Server) handleConn(conn net.Conn) {
 	for {
 		cmd, err := transport.ParseCommand(conn)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection reset by peer") {
+				s.Log.Info().Msg("client disconnected")
 				break
 			}
-			s.Log.Error().Msgf("parse command error: %s", err.Error())
+			s.Log.Error().Err(err).Msg("parse command error")
 			break
 		}
+
 		go s.handleCommand(conn, cmd)
 	}
 
@@ -76,6 +84,7 @@ func (s *Server) handleCommand(conn net.Conn, cmd any) {
 	switch v := cmd.(type) {
 	case *transport.CommandSet:
 		s.handleSetCommand(conn, v)
+		fmt.Println("its done right!")
 	case *transport.CommandGet:
 		s.handleGetCommand(conn, v)
 	default:
@@ -86,45 +95,59 @@ func (s *Server) handleCommand(conn net.Conn, cmd any) {
 // handleGetCommand handles the GET command
 func (s *Server) handleGetCommand(conn net.Conn, cmd *transport.CommandGet) {
 	resp := transport.ResponseGet{}
-
-	future := s.RaftNode.Apply(cmd.Bytes(), 5*time.Second)
-	if future.Error() != nil {
-		resp.Status = transport.StatusError
-		s.writeResponse(conn, resp.Bytes())
-		return
-	}
-
-	value := future.Response()
 	resp.Status = transport.StatusOK
 
-	readFuture := s.RaftNode.VerifyLeader()
-	if err := readFuture.Error(); err != nil {
-		s.Log.Error().Msgf("not the leader: %v", err)
-		resp.Status = transport.StatusError
+	// readFuture := s.RaftNode.VerifyLeader()
+	// if err := readFuture.Error(); err != nil {
+	// 	s.Log.Error().Msgf("not the leader: %v", err)
+	// 	resp.Status = transport.StatusError
+	// 	s.writeResponse(conn, resp.Bytes())
+	// 	return
+	// }
+
+	value, err := s.Cache.Get(cmd.Key)
+	if err != nil {
+		var expiredErr *util.ExpiredKeyError
+		var notFoundErr *util.KeyNotFoundError
+		switch {
+		case errors.As(err, &expiredErr):
+			resp.Status = transport.StatusExpired
+		case errors.As(err, &notFoundErr):
+			resp.Status = transport.StatusKeyNotFound
+		default:
+			resp.Status = transport.StatusError
+		}
+
 		s.writeResponse(conn, resp.Bytes())
 		return
 	}
 
-	resp.Value = value.([]byte)
+	resp.Value = value
 	s.writeResponse(conn, resp.Bytes())
 }
 
 // handleSetCommand handles the SET command
 func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) {
 	resp := transport.ResponseSet{}
-
 	// Redirect to the leader if this node is not the leader
-	if s.RaftNode.Leader() != raft.ServerAddress(s.ListenAddr) {
-		if err := s.dialLeader(cmd); err != nil {
+	leaderAppAddr, err := s.getLeaderAddr()
+	if err != nil {
+		resp.Status = transport.StatusError
+		s.writeResponse(conn, resp.Bytes())
+		return
+	}
+
+	if raft.ServerAddress(leaderAppAddr) != raft.ServerAddress(s.ListenAddr) {
+		if err := s.dialLeader(cmd, leaderAppAddr); err != nil {
 			s.Log.Error().Msgf("failed to dial leader: %s", err.Error())
 			resp.Status = transport.StatusError
 			s.writeResponse(conn, resp.Bytes())
 			return
 		}
+		resp.Status = transport.StatusOK
+		s.writeResponse(conn, resp.Bytes())
 		return
 	}
-
-	s.Log.Info().Msgf("SET %s to %s", cmd.Key, cmd.Value)
 
 	future := s.RaftNode.Apply(cmd.Bytes(), 5*time.Second)
 	if future.Error() != nil {
@@ -133,6 +156,7 @@ func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) {
 		return
 	}
 
+	s.Log.Info().Msgf("Response %s", future.Response())
 	resp.Status = transport.StatusOK
 	s.writeResponse(conn, resp.Bytes())
 }
@@ -145,12 +169,7 @@ func (s *Server) writeResponse(conn net.Conn, data []byte) {
 }
 
 // dialLeader dials the leader
-func (s *Server) dialLeader(cmd *transport.CommandSet) error {
-	leaderAddr, err := s.getLeaderAddr()
-	if err != nil {
-		return err
-	}
-
+func (s *Server) dialLeader(cmd *transport.CommandSet, leaderAddr string) error {
 	conn, err := net.Dial("tcp", leaderAddr)
 	if err != nil {
 		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
@@ -166,11 +185,41 @@ func (s *Server) dialLeader(cmd *transport.CommandSet) error {
 	return nil
 }
 
+func (s *Server) dialLeaderAndForward(origConn net.Conn, cmd *transport.CommandSet, leaderAddr string) error {
+	conn, err := net.Dial("tcp", leaderAddr)
+	if err != nil {
+		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
+	}
+	defer conn.Close()
+
+	// Send command to leader
+	if _, err := conn.Write(cmd.Bytes()); err != nil {
+		return fmt.Errorf("failed to write to leader: %w", err)
+	}
+
+	// Wait for leader's response
+	var resp transport.ResponseSet
+	if err := binary.Read(conn, binary.LittleEndian, &resp.Status); err != nil {
+		return fmt.Errorf("failed to read from leader: %w", err)
+	}
+
+	// Forward response to original client
+	if _, err := origConn.Write(resp.Bytes()); err != nil {
+		return fmt.Errorf("failed to write back to client: %w", err)
+	}
+
+	return nil
+}
+
 // getLeaderAddr returns the leader address
 func (s *Server) getLeaderAddr() (string, error) {
-	leaderHost, leaderPort, err := net.SplitHostPort(string(s.RaftNode.Leader()))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse leader address: %w", err)
+	raftAddr := string(s.RaftNode.Leader())
+	if raftAddr == "" {
+		return "", fmt.Errorf("leader not known yet")
 	}
-	return fmt.Sprintf("%s:%s", leaderHost, leaderPort), nil
+	appAddr, ok := s.PeerMap[raftAddr]
+	if !ok {
+		return "", fmt.Errorf("no app mapping for leader %s", raftAddr)
+	}
+	return appAddr, nil
 }

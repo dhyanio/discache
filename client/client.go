@@ -45,11 +45,13 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 		Key: key,
 	}
 
+	// Send to the server
 	_, err := c.conn.Write(cmd.Bytes())
 	if err != nil {
 		return nil, err
 	}
 
+	// Now read then parse conn response
 	resp, err := transport.ParseGetResponse(c.conn)
 	if err != nil {
 		return nil, err
@@ -59,7 +61,6 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 		c.Log.Warn().Msgf("key [%s] expired", key)
 		return nil, nil
 	}
-
 	if resp.Status == transport.StatusKeyNotFound {
 		c.Log.Warn().Msgf("key [%s] not present", key)
 		return nil, nil
@@ -84,7 +85,7 @@ func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
 	if err != nil {
 		return err
 	}
-
+	
 	resp, err := transport.ParseSetResponse(c.conn)
 	if err != nil {
 		return err
