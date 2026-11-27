@@ -487,7 +487,7 @@ cd discache
 Open terminal 1:
 
 ```bash
-make run NAME=node1 LISTEN_ADDR=127.0.0.1:8080
+make run NAME=node1 CONFIG=config.json
 ```
 
 Node 1 uses:
@@ -500,7 +500,7 @@ Node 1 uses:
 Open terminal 2:
 
 ```bash
-make follower NAME=node2 LISTEN_ADDR=127.0.0.1:8081 Leader_NAME=node1
+make follower NAME=node2 Leader_NAME=node1 CONFIG=config.json
 ```
 
 Node 2 uses:
@@ -513,7 +513,7 @@ Node 2 uses:
 Open terminal 3:
 
 ```bash
-make follower NAME=node3 LISTEN_ADDR=127.0.0.1:8082 Leader_NAME=node1
+make follower NAME=node3 Leader_NAME=node1 CONFIG=config.json
 ```
 
 Node 3 uses:
@@ -658,26 +658,9 @@ Some important limitations to keep in mind:
 1. **Local reads:** GET reads from the receiving node's local cache. It does not currently use a Raft read barrier or leader verification.
 2. **Snapshot and restore:** The current FSM snapshot and restore implementations are placeholders. They do not yet serialize and restore the cache contents.
 3. **TTL:** The FSM currently applies SET using the cache's `Put` operation. The TTL field in the serialized SET command is not yet applied as a per-key TTL. Cache-wide TTL is a separate configuration.
-4. **Cluster configuration:** The local setup uses a predefined three-node peer configuration and static application-to-Raft address mapping.
-5. **Authentication and encryption:** Client TCP connections do not currently provide an authentication or TLS layer.
-6. **Recovery testing:** Node restart, snapshot recovery, and rejoining a node after a period offline need additional testing.
-7. **Dynamic membership:** Adding and removing nodes dynamically is not yet documented as a supported workflow.
+4. **Recovery testing:** Node restart, snapshot recovery, and rejoining a node after a period offline need additional testing.
+5. **Dynamic membership:** Adding and removing nodes dynamically is not yet documented as a supported workflow.
 
 These are useful areas for future development.
 
 ---
-
-## Learning Goals
-
-This project is also a practical exploration of distributed systems concepts:
-
-- TCP networking and binary protocols
-- Leader-based replication
-- Raft consensus
-- Leader election and failure detection
-- Replicated state machines
-- Local in-memory caching
-- Request forwarding
-- Consistency and availability trade-offs
-
-The objective is to understand how a distributed cache works beyond a simple in-memory key-value map.

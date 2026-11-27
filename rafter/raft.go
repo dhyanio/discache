@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/dhyanio/discache/cluster"
 	"github.com/dhyanio/discache/server"
 	"github.com/dhyanio/discache/transport"
 	cache "github.com/dhyanio/go-lru"
@@ -17,11 +18,12 @@ import (
 
 // RaftServerOpts represents the options for a Raft server
 type RaftServerOpts struct {
-	ID         string
-	ListenAddr string
-	IsLeader   bool
-	LeaderAddr string
-	Log        *gogger.Logger
+	ID            string
+	ListenAddr    string
+	IsLeader      bool
+	LeaderAddr    string
+	Log           *gogger.Logger
+	ClusterConfig cluster.ClusterConfig
 }
 
 const (
@@ -140,60 +142,82 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server, fsm *ra
 
 // Rafting will start the raft node
 func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
-	// Define the cluster configuration with all nodes
-	peers := []raft.Server{
-		{ID: raft.ServerID("node1"), Address: raft.ServerAddress("127.0.0.1:8080")},
-		{ID: raft.ServerID("node2"), Address: raft.ServerAddress("127.0.0.1:8081")},
-		{ID: raft.ServerID("node3"), Address: raft.ServerAddress("127.0.0.1:8082")},
-	}
-	peerMap := map[string]string{
-		"127.0.0.1:8080": "127.0.0.1:9080",
-		"127.0.0.1:8081": "127.0.0.1:9081",
-		"127.0.0.1:8082": "127.0.0.1:9082",
-	}
-
-	// Create the Raft node
-	raftNode, err := createRaftNodeWithCluster(opts, peers, raftFSM)
-	if err != nil {
-		opts.Log.Fatal().Msgf("Error starting node %s: %v", opts.ID, err)
-	}
-
-	// Display the current leader periodically
-	go func() {
-		for {
-			time.Sleep(5 * time.Minute)
-			leader := raftNode.Leader()
-			opts.Log.Info().Msgf("Current leader: %s\n", leader)
-		}
-	}()
-
-	// Start the Raft node server
-	// nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
-	// if err != nil {
-	// 	opts.Log.Error().Msgf("Failed to parse node address: %v", err)
-	// 	return
-	// }
-	// nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
-	// Start the Raft node server
-	nodeServerAddr, ok := peerMap[opts.ListenAddr]
+	// 1. Validate that this node exists in the cluster configuration.
+	node, ok := opts.ClusterConfig.NodeByID(opts.ID)
 	if !ok {
 		opts.Log.Fatal().Msgf(
-			"No HTTP server address configured for Raft address %s",
+			"Node %s not found in cluster configuration",
+			opts.ID,
+		)
+		return
+	}
+
+	// 2. Validate that the configured Raft address matches this node.
+	if node.RaftAddr != opts.ListenAddr {
+		opts.Log.Fatal().Msgf(
+			"Raft address mismatch for node %s: configured=%s, actual=%s",
+			opts.ID,
+			node.RaftAddr,
 			opts.ListenAddr,
 		)
 		return
 	}
 
-	serverOpts := server.ServerOpts{
-		ListenAddr: nodeServerAddr,
-		Log:        opts.Log,
-		RaftNode:   raftNode,
-		PeerMap:    peerMap,
-		Cache:      raftFSM.cache,
+	// 3. Generate Raft peers from cluster configuration.
+	peers := opts.ClusterConfig.RaftPeers()
+
+	// 4. Create the Raft node.
+	raftNode, err := createRaftNodeWithCluster(opts, peers, raftFSM)
+	if err != nil {
+		opts.Log.Fatal().Msgf(
+			"Error starting node %s: %v",
+			opts.ID,
+			err,
+		)
+		return
 	}
 
-	server := server.NewServer(serverOpts)
-	if err := server.Start(); err != nil {
-		opts.Log.Fatal().Msgf("failed to start server : %s", err.Error())
+	opts.Log.Info().Msgf(
+		"Raft node %s started at %s",
+		opts.ID,
+		opts.ListenAddr,
+	)
+
+	// 5. Periodically display the current leader.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			leaderAddr, leaderID := raftNode.LeaderWithID()
+
+			opts.Log.Info().Msgf(
+				"Node=%s State=%s LeaderID=%s LeaderAddr=%s",
+				opts.ID,
+				raftNode.State(),
+				leaderID,
+				leaderAddr,
+			)
+		}
+	}()
+
+	// 6. Start the application server on this node's application address.
+	serverOpts := server.ServerOpts{
+		ListenAddr:    node.AppAddr,
+		Log:           opts.Log,
+		RaftNode:      raftNode,
+		ClusterConfig: opts.ClusterConfig,
+		Cache:         raftFSM.cache,
+	}
+
+	appServer := server.NewServer(serverOpts)
+
+	if err := appServer.Start(); err != nil {
+		opts.Log.Fatal().Msgf(
+			"Failed to start application server on %s: %v",
+			node.AppAddr,
+			err,
+		)
+		return
 	}
 }
