@@ -138,10 +138,10 @@ func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) {
 	}
 
 	if raft.ServerAddress(leaderAppAddr) != raft.ServerAddress(s.ListenAddr) {
-		if err := s.dialLeader(cmd, leaderAppAddr); err != nil {
-			s.Log.Error().Msgf("failed to dial leader: %s", err.Error())
-			resp.Status = transport.StatusError
-			s.writeResponse(conn, resp.Bytes())
+		if raft.ServerAddress(leaderAppAddr) != raft.ServerAddress(s.ListenAddr) {
+			if err := s.dialLeader(conn, cmd, leaderAppAddr); err != nil {
+				s.Log.Error().Msgf("failed to forward SET: %v", err)
+			}
 			return
 		}
 		resp.Status = transport.StatusOK
@@ -169,19 +169,30 @@ func (s *Server) writeResponse(conn net.Conn, data []byte) {
 }
 
 // dialLeader dials the leader
-func (s *Server) dialLeader(cmd *transport.CommandSet, leaderAddr string) error {
+func (s *Server) dialLeader(
+	origConn net.Conn,
+	cmd *transport.CommandSet,
+	leaderAddr string,
+) error {
 	conn, err := net.Dial("tcp", leaderAddr)
 	if err != nil {
-		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
+		return fmt.Errorf("failed to connect to leader: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.Write(cmd.Bytes()); err != nil {
+		return fmt.Errorf("failed to send command to leader: %w", err)
 	}
 
-	s.Log.Info().Msgf("connected to leader: %s", leaderAddr)
-
-	if err := binary.Write(conn, binary.LittleEndian, cmd.Bytes()); err != nil {
-		return fmt.Errorf("failed to write command to leader: %w", err)
+	resp, err := transport.ParseSetResponse(conn)
+	if err != nil {
+		return fmt.Errorf("failed to read leader response: %w", err)
 	}
 
-	s.handleConn(conn)
+	if _, err := origConn.Write(resp.Bytes()); err != nil {
+		return fmt.Errorf("failed to forward response to client: %w", err)
+	}
+
 	return nil
 }
 

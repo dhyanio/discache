@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/dhyanio/discache/rafter"
+	cache "github.com/dhyanio/go-lru"
 	"github.com/dhyanio/gogger"
 	"github.com/spf13/cobra"
-	"github.com/dhyanio/go-lru"
 )
 
 const (
@@ -85,8 +85,9 @@ func startServer(opts rafter.RaftServerOpts) {
 	// Initialize cache with capacity 5, TTL 5 seconds, and custom eviction callback
 	cacheOpts := cache.CacheOpts{
 		Capacity: cacheCapabity,
-		TTL:      cacheTTL,
-		OnEvict:  evictFunc,
+		// TTL:      cacheTTL,
+		TTL:     0,
+		OnEvict: evictFunc,
 	}
 	cc := cache.NewCache(cacheOpts)
 	raftSever(cc, opts)

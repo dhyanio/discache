@@ -43,6 +43,7 @@ func NewRaftFSM(cache *cache.Cache) *raftFSM {
 
 // Apply applies a Raft log entry to the Cache.
 func (f *raftFSM) Apply(log *raft.Log) any {
+	fmt.Println("RAFT FSM APPLY CALLED:", string(log.Data))
 	r := bytes.NewReader(log.Data)
 
 	cmd, err := transport.ParseCommand(r)
@@ -167,12 +168,21 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	}()
 
 	// Start the Raft node server
-	nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
-	if err != nil {
-		opts.Log.Error().Msgf("Failed to parse node address: %v", err)
+	// nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
+	// if err != nil {
+	// 	opts.Log.Error().Msgf("Failed to parse node address: %v", err)
+	// 	return
+	// }
+	// nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
+	// Start the Raft node server
+	nodeServerAddr, ok := peerMap[opts.ListenAddr]
+	if !ok {
+		opts.Log.Fatal().Msgf(
+			"No HTTP server address configured for Raft address %s",
+			opts.ListenAddr,
+		)
 		return
 	}
-	nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
 
 	serverOpts := server.ServerOpts{
 		ListenAddr: nodeServerAddr,

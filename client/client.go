@@ -31,8 +31,9 @@ func NewFromConn(conn net.Conn) *Client {
 func New(endpoint string, opts Options) (*Client, error) {
 	conn, err := net.Dial("tcp", endpoint)
 	if err != nil {
-		opts.Log.Fatal().Msgf("failed to create discache client: %s", err.Error())
+		return nil, fmt.Errorf("failed to create discache client: %w", err)
 	}
+
 	return &Client{
 		Options: opts,
 		conn:    conn,
@@ -85,7 +86,7 @@ func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	resp, err := transport.ParseSetResponse(c.conn)
 	if err != nil {
 		return err
