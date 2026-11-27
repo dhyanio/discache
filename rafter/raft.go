@@ -43,6 +43,7 @@ func NewRaftFSM(cache *cache.Cache) *raftFSM {
 
 // Apply applies a Raft log entry to the Cache.
 func (f *raftFSM) Apply(log *raft.Log) any {
+	fmt.Println("RAFT FSM APPLY CALLED:", string(log.Data))
 	r := bytes.NewReader(log.Data)
 
 	cmd, err := transport.ParseCommand(r)
@@ -55,13 +56,8 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 		if err := f.cache.Put(v.Key, v.Value); err != nil {
 			return fmt.Errorf("failed to set value: %s", err.Error())
 		}
-		return nil
-	case *transport.CommandGet:
-		value, err := f.cache.Get(v.Key)
-		if err != nil {
-			return fmt.Errorf("failed to get value: %s", err.Error())
-		}
-		return value
+		// <add logger here>
+		return fmt.Sprintf("SET %s to %s", v.Key, v.Value)
 	default:
 		return fmt.Errorf("unknown operation: %T", cmd)
 	}
@@ -90,7 +86,7 @@ func (s *snapshot) Persist(sink raft.SnapshotSink) error {
 func (s *snapshot) Release() {}
 
 // createRaftNodeWithCluster will create raft node and cluster
-func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.Raft, error) {
+func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server, fsm *raftFSM) (*raft.Raft, error) {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(opts.ID)
 	config.ElectionTimeout = raftClusterElectionTimeout
@@ -123,7 +119,7 @@ func createRaftNodeWithCluster(opts RaftServerOpts, peers []raft.Server) (*raft.
 	}
 
 	// Construct a new Raft node
-	raftNode, err := raft.NewRaft(config, NewRaftFSM(nil), logStore, stableStore, snapshotStore, transport)
+	raftNode, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Raft: %v", err)
 	}
@@ -150,9 +146,14 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 		{ID: raft.ServerID("node2"), Address: raft.ServerAddress("127.0.0.1:8081")},
 		{ID: raft.ServerID("node3"), Address: raft.ServerAddress("127.0.0.1:8082")},
 	}
+	peerMap := map[string]string{
+		"127.0.0.1:8080": "127.0.0.1:9080",
+		"127.0.0.1:8081": "127.0.0.1:9081",
+		"127.0.0.1:8082": "127.0.0.1:9082",
+	}
 
 	// Create the Raft node
-	raftNode, err := createRaftNodeWithCluster(opts, peers)
+	raftNode, err := createRaftNodeWithCluster(opts, peers, raftFSM)
 	if err != nil {
 		opts.Log.Fatal().Msgf("Error starting node %s: %v", opts.ID, err)
 	}
@@ -160,25 +161,37 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 	// Display the current leader periodically
 	go func() {
 		for {
-			time.Sleep(20 * time.Second)
+			time.Sleep(5 * time.Minute)
 			leader := raftNode.Leader()
 			opts.Log.Info().Msgf("Current leader: %s\n", leader)
 		}
 	}()
 
 	// Start the Raft node server
-	nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
-	if err != nil {
-		opts.Log.Error().Msgf("Failed to parse node address: %v", err)
+	// nodeListenHost, _, err := net.SplitHostPort(opts.ListenAddr)
+	// if err != nil {
+	// 	opts.Log.Error().Msgf("Failed to parse node address: %v", err)
+	// 	return
+	// }
+	// nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
+	// Start the Raft node server
+	nodeServerAddr, ok := peerMap[opts.ListenAddr]
+	if !ok {
+		opts.Log.Fatal().Msgf(
+			"No HTTP server address configured for Raft address %s",
+			opts.ListenAddr,
+		)
 		return
 	}
-	nodeServerAddr := fmt.Sprintf("%s%s", nodeListenHost, nodeHTTPServer)
 
 	serverOpts := server.ServerOpts{
 		ListenAddr: nodeServerAddr,
 		Log:        opts.Log,
 		RaftNode:   raftNode,
+		PeerMap:    peerMap,
+		Cache:      raftFSM.cache,
 	}
+
 	server := server.NewServer(serverOpts)
 	if err := server.Start(); err != nil {
 		opts.Log.Fatal().Msgf("failed to start server : %s", err.Error())

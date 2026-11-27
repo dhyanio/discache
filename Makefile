@@ -16,8 +16,8 @@ build: $(GO_FILES)
 run: build
 	$(BINARY_PATH) start node $(or $(NAME), :node1) $(or $(LISTEN_ADDR), :4000)
 
-leader: build
-	$(BINARY_PATH) start node $(or $(NAME), :node2) $(or $(LISTEN_ADDR), :4000) leader $(or $(LEADER_ADDR), :3000) $(or $(Leader_NAME), :node1)
+follower: build
+	$(BINARY_PATH) start node $(or $(NAME), :node2) $(or $(LISTEN_ADDR), :4000) leader $(or $(Leader_NAME), :node1)
 
 test:
 	@go test -v ./...
