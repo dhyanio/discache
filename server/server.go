@@ -10,19 +10,21 @@ import (
 	"time"
 
 	"github.com/dhyanio/discache/transport"
-	"github.com/dhyanio/discache/util"
 	cache "github.com/dhyanio/go-lru"
 	"github.com/dhyanio/gogger"
+
+	"github.com/dhyanio/discache/cluster"
+	"github.com/dhyanio/discache/util"
 	"github.com/hashicorp/raft"
 )
 
 // ServerOpts represents the options for a server
 type ServerOpts struct {
-	ListenAddr string
-	RaftNode   *raft.Raft
-	Cache      *cache.Cache
-	Log        *gogger.Logger
-	PeerMap    map[string]string
+	ListenAddr    string
+	RaftNode      *raft.Raft
+	Cache         *cache.Cache
+	Log           *gogger.Logger
+	ClusterConfig cluster.ClusterConfig
 }
 
 // Server represents a server
@@ -222,15 +224,20 @@ func (s *Server) dialLeaderAndForward(origConn net.Conn, cmd *transport.CommandS
 	return nil
 }
 
-// getLeaderAddr returns the leader address
 func (s *Server) getLeaderAddr() (string, error) {
 	raftAddr := string(s.RaftNode.Leader())
+
 	if raftAddr == "" {
 		return "", fmt.Errorf("leader not known yet")
 	}
-	appAddr, ok := s.PeerMap[raftAddr]
+
+	appAddr, ok := s.ClusterConfig.AppAddrForRaft(raftAddr)
 	if !ok {
-		return "", fmt.Errorf("no app mapping for leader %s", raftAddr)
+		return "", fmt.Errorf(
+			"application address not found for raft leader %s",
+			raftAddr,
+		)
 	}
+
 	return appAddr, nil
 }

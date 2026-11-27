@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/dhyanio/discache/cluster"
 	"github.com/dhyanio/discache/rafter"
 	cache "github.com/dhyanio/go-lru"
 	"github.com/dhyanio/gogger"
@@ -33,49 +35,77 @@ func startCmd() *cobra.Command {
 }
 
 // nodeCmd creates the node command
+
 var nodeCmd = cobra.Command{
-	Use: "node [nodeName] [nodeEndpoint] [leader [leaderName]]",
-	// Use:   "node [name] [leader [leaderPort]]",
+	Use:   "node [nodeName] config [configPath] [leader [leaderName]]",
 	Short: "Start a node server, optionally specifying a leader",
-	Long:  "Start a node server on the specified port, optionally specifying a leader name",
-	Args:  cobra.MinimumNArgs(1), // At least the node port is required
+	Long:  "Start a node using the cluster configuration file",
+	Args:  cobra.MinimumNArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
-		nodeEndpoint := args[1]
+
+		if args[1] != "config" {
+			fmt.Printf("Error: expected 'config [configPath]' after node name\n")
+			os.Exit(1)
+		}
+
+		configPath := args[2]
+
+		// Load cluster configuration.
+		configData, err := os.ReadFile(configPath)
+		if err != nil {
+			fmt.Printf("Failed to read config file: %v\n", err)
+			os.Exit(1)
+		}
+
+		var clusterConfig cluster.ClusterConfig
+		if err := json.Unmarshal(configData, &clusterConfig); err != nil {
+			fmt.Printf("Failed to parse config file: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Validate that the requested node exists.
+		node, ok := clusterConfig.NodeByID(nodeName)
+		if !ok {
+			fmt.Printf("Node %q not found in cluster configuration\n", nodeName)
+			os.Exit(1)
+		}
+
 		leaderName := ""
 		isLeader := true
 
-		if len(args) > 2 {
-			// Validate if "leader" keyword is provided with correct format
-			if args[2] == "leader" {
-				if len(args) == 4 {
-					leaderName = args[3]
-					isLeader = false
-				} else {
-					// Print error if "leader" keyword is used but the name is missing
-					fmt.Println("Error: 'leader' specified without name. Use 'discache start node [port]' for a standalone node or 'discache start node [nodeName] [nodeEndpoint] leader [leaderName]' for a node with leader.")
-					os.Exit(1)
-				}
-			} else {
-				// Print error if invalid argument is provided after the port
-				fmt.Printf("Error: Unknown argument '%s'. Use 'leader [leaderName]' after the name to specify a leader.\n", args[1])
+		// Optional leader argument.
+		if len(args) > 3 {
+			if args[3] != "leader" || len(args) != 5 {
+				fmt.Println("Expected: leader [leaderName]")
+				os.Exit(1)
+			}
+
+			leaderName = args[4]
+			isLeader = false
+
+			// Validate leader exists in configuration.
+			if _, ok := clusterConfig.NodeByID(leaderName); !ok {
+				fmt.Printf("Leader %q not found in cluster configuration\n", leaderName)
 				os.Exit(1)
 			}
 		}
 
 		log, err := gogger.NewLogger(loggerFilePath, gogger.INFO)
 		if err != nil {
-			fmt.Printf("Error: Unknown argument '%s'. Use 'leader [leaderName]' after the name to specify a leader.\n", args[1])
+			fmt.Printf("Failed to create logger: %v\n", err)
 			os.Exit(1)
 		}
 
 		opts := rafter.RaftServerOpts{
-			ID:         nodeName,
-			ListenAddr: nodeEndpoint,
-			IsLeader:   isLeader,
-			LeaderAddr: leaderName,
-			Log:        log,
+			ID:            nodeName,
+			ListenAddr:    node.RaftAddr,
+			IsLeader:      isLeader,
+			LeaderAddr:    leaderName,
+			ClusterConfig: clusterConfig,
+			Log:           log,
 		}
+
 		startServer(opts)
 	},
 }
