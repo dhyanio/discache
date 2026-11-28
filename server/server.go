@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +17,10 @@ import (
 	"github.com/hashicorp/raft"
 )
 
+type FSMProgress interface {
+	AppliedIndex() uint64
+}
+
 // ServerOpts represents the options for a server
 type ServerOpts struct {
 	ListenAddr    string
@@ -25,6 +28,7 @@ type ServerOpts struct {
 	Cache         *cache.Cache
 	Log           *gogger.Logger
 	ClusterConfig cluster.ClusterConfig
+	FSMProgress   FSMProgress
 }
 
 // Server represents a server
@@ -83,6 +87,10 @@ func (s *Server) handleConn(conn net.Conn) {
 
 // handleCommand handles the incoming command
 func (s *Server) handleCommand(conn net.Conn, cmd any) {
+	s.Log.Info().Msgf(
+		"Local FSM applied index: %d",
+		s.FSMProgress.AppliedIndex(),
+	)
 	switch v := cmd.(type) {
 	case *transport.CommandSet:
 		s.handleSetCommand(conn, v)
@@ -158,8 +166,14 @@ func (s *Server) handleSetCommand(conn net.Conn, cmd *transport.CommandSet) {
 		return
 	}
 
-	s.Log.Info().Msgf("Response %s", future.Response())
 	resp.Status = transport.StatusOK
+	resp.Index = future.Index()
+
+	s.Log.Info().Msgf(
+		"SET committed at Raft index: %d",
+		resp.Index,
+	)
+
 	s.writeResponse(conn, resp.Bytes())
 }
 
@@ -193,32 +207,6 @@ func (s *Server) dialLeader(
 
 	if _, err := origConn.Write(resp.Bytes()); err != nil {
 		return fmt.Errorf("failed to forward response to client: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Server) dialLeaderAndForward(origConn net.Conn, cmd *transport.CommandSet, leaderAddr string) error {
-	conn, err := net.Dial("tcp", leaderAddr)
-	if err != nil {
-		return fmt.Errorf("failed to dial leader [%s]: %w", leaderAddr, err)
-	}
-	defer conn.Close()
-
-	// Send command to leader
-	if _, err := conn.Write(cmd.Bytes()); err != nil {
-		return fmt.Errorf("failed to write to leader: %w", err)
-	}
-
-	// Wait for leader's response
-	var resp transport.ResponseSet
-	if err := binary.Read(conn, binary.LittleEndian, &resp.Status); err != nil {
-		return fmt.Errorf("failed to read from leader: %w", err)
-	}
-
-	// Forward response to original client
-	if _, err := origConn.Write(resp.Bytes()); err != nil {
-		return fmt.Errorf("failed to write back to client: %w", err)
 	}
 
 	return nil

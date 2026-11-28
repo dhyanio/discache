@@ -48,14 +48,20 @@ const (
 // ResponseSet is a response to a set command
 type ResponseSet struct {
 	Status Status
+	Index  uint64
 }
 
-// Bytes returns the byte representation of the response
 func (r *ResponseSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
+
 	if err := binary.Write(buf, binary.LittleEndian, r.Status); err != nil {
 		return nil
 	}
+
+	if err := binary.Write(buf, binary.LittleEndian, r.Index); err != nil {
+		return nil
+	}
+
 	return buf.Bytes()
 }
 
@@ -86,9 +92,15 @@ func (r *ResponseGet) Bytes() []byte {
 // ParseSetResponse parses a set response from the reader
 func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
 	resp := &ResponseSet{}
+
 	if err := binary.Read(r, binary.LittleEndian, &resp.Status); err != nil {
 		return nil, err
 	}
+
+	if err := binary.Read(r, binary.LittleEndian, &resp.Index); err != nil {
+		return nil, err
+	}
+
 	return resp, nil
 }
 

@@ -59,11 +59,15 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	}
 
 	if resp.Status == transport.StatusExpired {
-		c.Log.Warn().Msgf("key [%s] expired", key)
+		if c.Log != nil {
+			c.Log.Warn().Msgf("key [%s] not present", key)
+		}
 		return nil, nil
 	}
 	if resp.Status == transport.StatusKeyNotFound {
-		c.Log.Warn().Msgf("key [%s] not present", key)
+		if c.Log != nil {
+			c.Log.Warn().Msgf("key [%s] not present", key)
+		}
 		return nil, nil
 	}
 
@@ -74,8 +78,16 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	return resp.Value, nil
 }
 
-// Put puts the key value pair in the server
 func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
+	_, err := c.PutWithIndex(ctx, key, value, ttl)
+	return err
+}
+
+func (c *Client) PutWithIndex(
+	ctx context.Context,
+	key, value []byte,
+	ttl int,
+) (uint64, error) {
 	cmd := &transport.CommandSet{
 		Key:   key,
 		Value: value,
@@ -84,17 +96,22 @@ func (c *Client) Put(ctx context.Context, key, value []byte, ttl int) error {
 
 	_, err := c.conn.Write(cmd.Bytes())
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	resp, err := transport.ParseSetResponse(c.conn)
 	if err != nil {
-		return err
+		return 0, err
 	}
+
 	if resp.Status != transport.StatusOK {
-		return fmt.Errorf("server responsed with noe OK status [%s]", resp.Status)
+		return 0, fmt.Errorf(
+			"server responded with non-OK status [%s]",
+			resp.Status,
+		)
 	}
-	return nil
+
+	return resp.Index, nil
 }
 
 // Close closes the connection
