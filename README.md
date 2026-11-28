@@ -28,7 +28,7 @@ The project explores how distributed systems work internally: leader election, l
 - [Leader Failure and Failover](#leader-failure-and-failover)
 - [Local Setup](#local-setup)
 - [Testing](#testing)
-- [Project Structure](#project-structure)
+- [Main Components](#main-components)
 - [Current Limitations](#current-limitations)
 
 ---
@@ -597,46 +597,69 @@ The write should be coordinated by the new leader.
 **Note:** A three-voter cluster can continue operating with two nodes available. If two nodes are unavailable, the remaining node cannot form a majority and cannot commit new writes.
 
 ---
+### Benchmarking
+<img src="./doc/benchmarking.png" alt="Discache" width="600"/>
 
-## Project Structure
-
-```text
-discache/
-|
-+-- client/
-|   +-- client.go
-|       Client-side API for PUT and GET
-|
-+-- cmd/
-|   +-- start.go
-|       Node initialization and startup
-|
-+-- example/
-|   +-- simple.go
-|   +-- read.go
-|       Example client programs
-|
-+-- rafter/
-|   +-- raft.go
-|       Raft configuration, cluster setup and FSM
-|
-+-- server/
-|   +-- server.go
-|       TCP server, request handling and forwarding
-|
-+-- transport/
-|   +-- transport.go
-|       Binary command and response serialization
-|
-+-- util/
-|       Utility functions and errors
-|
-+-- Makefile
-+-- main.go
-+-- go.mod
 ```
+go run example/benchmark.go -addr 127.0.0.1:9080 -mode get -concurrency 1 -duration 30s
+Preloading keys...
+Preload complete
+Mode=get Concurrency=1 Duration=30s
 
-### Main Components
+========== BENCHMARK RESULTS ==========
+Endpoint:     127.0.0.1:9080
+Mode:         get
+Concurrency:  1
+Duration:     30.001s
+Total ops:    137212
+Errors:       0
+Throughput:   4573.55 ops/sec
+p50 latency:  201.05µs
+p95 latency:  286.366µs
+p99 latency:  405.969µs
+=======================================
+```
+```
+go run example/benchmark.go -addr 127.0.0.1:9080 -mode get -concurrency 10
+Preloading keys...
+Preload complete
+Mode=get Concurrency=10 Duration=30s
+
+========== BENCHMARK RESULTS ==========
+Endpoint:     127.0.0.1:9080
+Mode:         get
+Concurrency:  10
+Duration:     30.017s
+Total ops:    734666
+Errors:       0
+Throughput:   24475.34 ops/sec
+p50 latency:  299.651µs
+p95 latency:  886.618µs
+p99 latency:  1.562229ms
+=======================================
+```
+```
+go run example/benchmark.go -addr 127.0.0.1:9080 -mode get -concurrency 50
+Preloading keys...
+Preload complete
+Mode=get Concurrency=50 Duration=30s
+
+========== BENCHMARK RESULTS ==========
+Endpoint:     127.0.0.1:9080
+Mode:         get
+Concurrency:  50
+Duration:     30.042s
+Total ops:    1310537
+Errors:       0
+Throughput:   43624.00 ops/sec
+p50 latency:  705.593µs
+p95 latency:  3.053283ms
+p99 latency:  6.020236ms
+=======================================
+```
+---
+
+## Main Components
 
 | Component | Responsibility |
 |---|---|

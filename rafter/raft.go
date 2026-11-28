@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/dhyanio/discache/cluster"
@@ -33,7 +34,8 @@ const (
 
 // raftFSM is a finite state machine that applies log entries to the key-value store.
 type raftFSM struct {
-	cache *cache.Cache
+	cache        *cache.Cache
+	appliedIndex atomic.Uint64
 }
 
 // NewRaftFSM creates a new Raft finite state machine.
@@ -46,6 +48,7 @@ func NewRaftFSM(cache *cache.Cache) *raftFSM {
 // Apply applies a Raft log entry to the Cache.
 func (f *raftFSM) Apply(log *raft.Log) any {
 	fmt.Println("RAFT FSM APPLY CALLED:", string(log.Data))
+
 	r := bytes.NewReader(log.Data)
 
 	cmd, err := transport.ParseCommand(r)
@@ -58,11 +61,20 @@ func (f *raftFSM) Apply(log *raft.Log) any {
 		if err := f.cache.Put(v.Key, v.Value); err != nil {
 			return fmt.Errorf("failed to set value: %s", err.Error())
 		}
-		// <add logger here>
+
+		// Cache mutation succeeded. Now record the applied index.
+		f.appliedIndex.Store(log.Index)
+
 		return fmt.Sprintf("SET %s to %s", v.Key, v.Value)
+
 	default:
 		return fmt.Errorf("unknown operation: %T", cmd)
 	}
+}
+
+// AppliedIndex returns the highest Raft log index applied to the local cache.
+func (f *raftFSM) AppliedIndex() uint64 {
+	return f.appliedIndex.Load()
 }
 
 // Snapshot returns a snapshot of the key-value store.
@@ -208,6 +220,7 @@ func Rafting(raftFSM *raftFSM, opts RaftServerOpts) {
 		RaftNode:      raftNode,
 		ClusterConfig: opts.ClusterConfig,
 		Cache:         raftFSM.cache,
+		FSMProgress:   raftFSM,
 	}
 
 	appServer := server.NewServer(serverOpts)
